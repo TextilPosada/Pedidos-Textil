@@ -899,10 +899,6 @@ tr:hover td { background: var(--lighter); }
       <input type="password" id="loginPass" placeholder="••••••••" autocomplete="current-password"
         onkeydown="if(event.key==='Enter') hacerLogin()">
     </div>
-    <label class="login-remember">
-      <input type="checkbox" id="recordarMe" checked>
-      <span>Recordar este dispositivo</span>
-    </label>
     <button class="login-btn" onclick="hacerLogin()">Ingresar</button>
     <div class="login-error" id="loginError">Usuario o contrasena incorrectos</div>
   </div>
@@ -2462,15 +2458,14 @@ async function recargarDesdeDrive() {
 
 // ─── CREDENCIALES (cámbialas aquí) ───
 const USUARIOS = [
-  { user: 'admin',    pass: 'textil2026', nombre: 'Administrador' },
-  { user: 'Usuario',  pass: 'costura123', nombre: 'Usuario'     },
+  { user: 'admin',    pass: 'textil2024', nombre: 'Administrador' },
+  { user: 'costura',  pass: 'costura123', nombre: 'Costurera'     },
 ];
 const SESSION_KEY = 'textilpro_session';
 
 function hacerLogin() {
   const user = document.getElementById('loginUser').value.trim().toLowerCase();
   const pass = document.getElementById('loginPass').value;
-  const recordar = document.getElementById('recordarMe').checked;
   const encontrado = USUARIOS.find(u => u.user === user && u.pass === pass);
   if (!encontrado) {
     const err = document.getElementById('loginError');
@@ -2479,23 +2474,19 @@ function hacerLogin() {
     setTimeout(() => err.style.display = 'none', 3000);
     return;
   }
-  if (recordar) {
-    localStorage.setItem(SESSION_KEY, JSON.stringify({ user, nombre: encontrado.nombre, ts: Date.now() }));
-  } else {
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ user, nombre: encontrado.nombre, ts: Date.now() }));
-  }
+  // Siempre localStorage — persiste aunque se cierre el navegador
+  localStorage.setItem(SESSION_KEY, JSON.stringify({
+    user, nombre: encontrado.nombre, ts: Date.now()
+  }));
   mostrarApp(encontrado.nombre);
 }
 
 function verificarSesion() {
-  const data = localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_KEY);
-  if (!data) return false;
   try {
+    const data = localStorage.getItem(SESSION_KEY);
+    if (!data) return false;
     const s = JSON.parse(data);
-    // Sesión válida por 30 días
-    if (Date.now() - s.ts > 30 * 24 * 60 * 60 * 1000) {
-      localStorage.removeItem(SESSION_KEY); return false;
-    }
+    // Sin expiración — dura hasta que presionen "Salir"
     return s;
   } catch(_) { return false; }
 }
@@ -2503,7 +2494,6 @@ function verificarSesion() {
 function mostrarApp(nombre) {
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('appContent').style.display = 'block';
-  // Agregar nombre de usuario y botón cerrar sesión al topbar
   const syncEl = document.getElementById('syncStatus');
   if (syncEl && nombre) {
     const salir = document.createElement('button');
@@ -2516,8 +2506,8 @@ function mostrarApp(nombre) {
 }
 
 function cerrarSesion() {
+  if (!confirm('Cerrar sesion en este dispositivo?')) return;
   localStorage.removeItem(SESSION_KEY);
-  sessionStorage.removeItem(SESSION_KEY);
   location.reload();
 }
 
