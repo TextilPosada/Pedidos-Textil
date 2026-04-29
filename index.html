@@ -1025,10 +1025,10 @@ tr:hover td { background: var(--lighter); }
       <div id="zonaPeligro" style="display:none;margin-top:8px;background:#FFF5F5;border:1.5px solid #FFCDD2;
            border-radius:10px;padding:14px">
         <div style="font-size:0.78rem;font-weight:700;color:#C62828;margin-bottom:6px">
-          Zona de peligro — esta acción no se puede deshacer
+          Zona de peligro — el pedido desaparecera del dashboard
         </div>
         <div style="font-size:0.75rem;color:#7A6652;margin-bottom:10px">
-          Escribe el numero del pedido para confirmar que quieres eliminarlo:
+          En Google Sheets quedara marcado como <strong>Cancelado</strong> en rojo como respaldo. Escribe el numero del pedido para confirmar:
         </div>
         <div style="display:flex;gap:8px;align-items:center">
           <input id="inputConfirmDelete" type="text"
@@ -1616,8 +1616,10 @@ async function cargarDatos() {
       body: JSON.stringify({ action: 'leer' }) });
     const data = await res.json();
     if (data.rows) {
-      pedidos = rowsToPedidos(data.rows, data.items);
-      // Guardar copia local como respaldo
+      const todos = rowsToPedidos(data.rows, data.items);
+      // Filtrar los pedidos que el usuario ocultó desde el dashboard
+      const ocultos = JSON.parse(localStorage.getItem('pedidos_ocultos') || '[]').map(String);
+      pedidos = todos.filter(p => !ocultos.includes(String(p.id)));
       try { localStorage.setItem(STORE_KEY, JSON.stringify(pedidos)); } catch(_) {}
       setSyncStatus('ok');
       return;
@@ -2313,16 +2315,28 @@ async function confirmarEliminar() {
   const id = pedidoModal.id;
   const num = pedidoModal.num;
   closeModalDirect();
+  // Ocultar del dashboard localmente (no borrar de Sheets)
   pedidos = pedidos.filter(p => p.id !== id);
-  await eliminarEnSheet(id);
+  // Guardar lista de IDs ocultos en localStorage para persistir entre sesiones
+  try {
+    const ocultos = JSON.parse(localStorage.getItem('pedidos_ocultos') || '[]');
+    if (!ocultos.includes(String(id))) ocultos.push(String(id));
+    localStorage.setItem('pedidos_ocultos', JSON.stringify(ocultos));
+  } catch(_) {}
+  // En Sheets: marcar como Cancelado + fila en rojo (no borrar)
+  await sheetRequest({ action: 'cancelar', id });
   renderDash();
-  showToast('Pedido #' + String(num).padStart(3,'0') + ' eliminado', '#C0392B');
+  showToast('Pedido #' + String(num).padStart(3,'0') + ' ocultado del dashboard', '#C0392B');
 }
 
 async function eliminarPedido(id) {
-  // Solo se llama desde confirmarEliminar ahora — función mantenida por compatibilidad
   pedidos = pedidos.filter(p => p.id !== id);
-  await eliminarEnSheet(id);
+  try {
+    const ocultos = JSON.parse(localStorage.getItem('pedidos_ocultos') || '[]');
+    if (!ocultos.includes(String(id))) ocultos.push(String(id));
+    localStorage.setItem('pedidos_ocultos', JSON.stringify(ocultos));
+  } catch(_) {}
+  await sheetRequest({ action: 'cancelar', id });
   renderDash();
 }
 
@@ -2708,8 +2722,8 @@ async function recargarDesdeDrive() {
 
 // ─── CREDENCIALES (cámbialas aquí) ───
 const USUARIOS = [
-  { user: 'admin',    pass: 'textil2026', nombre: 'Administrador' },
-  { user: 'user',  pass: 'costura123', nombre: 'Usuario'     },
+  { user: 'admin',    pass: 'textil2024', nombre: 'Administrador' },
+  { user: 'costura',  pass: 'costura123', nombre: 'Costurera'     },
 ];
 const SESSION_KEY = 'textilpro_session';
 
