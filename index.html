@@ -882,6 +882,66 @@ tr:hover td { background: var(--lighter); }
   font-size: 0.78rem; color: rgba(255,255,255,0.5);
 }
 #appContent { display: none; }
+
+/* ─── VARIANTE ROWS ─── */
+.variante-row {
+  display: grid;
+  grid-template-columns: 70px 1fr 55px 65px 70px 24px;
+  gap: 6px;
+  align-items: end;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--lighter);
+}
+.variante-row:last-child { border-bottom: none; }
+.variante-row label {
+  font-size: 0.6rem; margin-bottom: 3px;
+}
+.variante-row input, .variante-row select {
+  padding: 8px 7px; font-size: 0.8rem;
+}
+.var-desc-row {
+  padding: 4px 0 8px 0;
+  border-bottom: 1px solid var(--lighter);
+}
+.var-desc-row input {
+  padding: 7px 10px;
+  font-size: 0.78rem;
+  background: rgba(200,115,58,0.04);
+  border-color: rgba(200,115,58,0.2);
+}
+.var-desc-row input:focus { border-color: var(--accent); }
+.btn-del-var {
+  background: none; border: 1.5px solid var(--light);
+  border-radius: 6px; color: var(--danger);
+  font-size: 1rem; font-weight: 700;
+  cursor: pointer; padding: 0 0 2px;
+  height: 34px; width: 24px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s; margin-bottom: 0; flex-shrink: 0;
+}
+.btn-del-var:hover { background: #FFEBEE; border-color: var(--danger); }
+.btn-add-var {
+  width: 100%; padding: 8px;
+  background: transparent;
+  border: 1.5px dashed rgba(200,115,58,0.4);
+  border-radius: 8px; color: var(--accent);
+  font-family: 'Sora', sans-serif; font-size: 0.78rem;
+  font-weight: 600; cursor: pointer;
+  margin-top: 8px; transition: all 0.2s;
+}
+.btn-add-var:active { background: rgba(200,115,58,0.08); }
+.item-subtotal-row {
+  display: flex; justify-content: space-between;
+  align-items: center; margin-top: 8px;
+  padding: 6px 10px; background: var(--lighter);
+  border-radius: 8px; font-size: 0.8rem;
+}
+@media (max-width: 420px) {
+  .variante-row {
+    grid-template-columns: 60px 1fr 45px 58px 62px 22px;
+    gap: 4px;
+  }
+}
 </style>
 <body>
 
@@ -1275,8 +1335,7 @@ function toggleUrgente() {
 // ─── ITEMS ───
 function agregarItem() {
   const id = Date.now();
-  items.push({ id });
-  // Guardar datos actuales antes de re-renderizar
+  items.push({ id, variantes: [{ vid: Date.now() + 1 }] });
   salvarValoresItems();
   renderItems();
   restaurarValoresItems();
@@ -1288,32 +1347,56 @@ function eliminarItem(id) {
   restaurarValoresItems();
   calcTotal();
 }
-
-// Guarda en el objeto items[] los valores escritos en el DOM
+function agregarVariante(itemId) {
+  salvarValoresItems();
+  const it = items.find(i => i.id === itemId);
+  if (it) it.variantes.push({ vid: Date.now() });
+  renderItems();
+  restaurarValoresItems();
+  calcTotal();
+}
+function eliminarVariante(itemId, vid) {
+  salvarValoresItems();
+  const it = items.find(i => i.id === itemId);
+  if (it && it.variantes.length > 1) it.variantes = it.variantes.filter(v => v.vid !== vid);
+  renderItems();
+  restaurarValoresItems();
+  calcTotal();
+}
 function salvarValoresItems() {
   items.forEach(it => {
-    const prod = document.getElementById('prod-' + it.id);
-    const desc = document.getElementById('desc-' + it.id);
-    const cant = document.getElementById('cant-' + it.id);
-    const prec = document.getElementById('prec-' + it.id);
-    if (prod) it._prod = prod.value;
-    if (desc) it._desc = desc.value;
-    if (cant) it._cant = cant.value;
-    if (prec) it._prec = prec.value;
+    const prodEl = document.getElementById('prod-' + it.id);
+    if (prodEl) it._prod = prodEl.value;
+    it.variantes.forEach(v => {
+      const t = document.getElementById('talla-' + v.vid);
+      const c = document.getElementById('color-' + v.vid);
+      const q = document.getElementById('cant-'  + v.vid);
+      const p = document.getElementById('prec-'  + v.vid);
+      const d = document.getElementById('desc-' + v.vid);
+      if (t) v._talla = t.value;
+      if (c) v._color = c.value;
+      if (q) v._cant  = q.value;
+      if (p) v._prec  = p.value;
+      if (d) v._desc  = d.value;
+    });
   });
 }
-
-// Restaura los valores guardados de vuelta al DOM
 function restaurarValoresItems() {
   items.forEach(it => {
-    const prod = document.getElementById('prod-' + it.id);
-    const desc = document.getElementById('desc-' + it.id);
-    const cant = document.getElementById('cant-' + it.id);
-    const prec = document.getElementById('prec-' + it.id);
-    if (prod && it._prod !== undefined) prod.value = it._prod;
-    if (desc && it._desc !== undefined) desc.value = it._desc;
-    if (cant && it._cant !== undefined) cant.value = it._cant;
-    if (prec && it._prec !== undefined) prec.value = it._prec;
+    const prodEl = document.getElementById('prod-' + it.id);
+    if (prodEl && it._prod !== undefined) prodEl.value = it._prod;
+    it.variantes.forEach(v => {
+      const t = document.getElementById('talla-' + v.vid);
+      const c = document.getElementById('color-' + v.vid);
+      const q = document.getElementById('cant-'  + v.vid);
+      const p = document.getElementById('prec-'  + v.vid);
+      const d2 = document.getElementById('desc-' + v.vid);
+      if (t  && v._talla !== undefined) t.value  = v._talla;
+      if (c  && v._color !== undefined) c.value  = v._color;
+      if (q  && v._cant  !== undefined) q.value  = v._cant;
+      if (p  && v._prec  !== undefined) p.value  = v._prec;
+      if (d2 && v._desc  !== undefined) d2.value = v._desc;
+    });
   });
   calcTotal();
 }
@@ -1321,33 +1404,50 @@ function renderItems() {
   const cont = document.getElementById('itemsContainer');
   cont.innerHTML = '';
   items.forEach((it, idx) => {
+    const variantesHTML = it.variantes.map(v => `
+      <div class="variante-row" id="vrow-${v.vid}">
+        <div class="var-talla">
+          <label>Talla</label>
+          <input type="text" id="talla-${v.vid}" placeholder="S, M, 10, 38...">
+        </div>
+        <div class="var-color">
+          <label>Color</label>
+          <input type="text" id="color-${v.vid}" placeholder="Ej: Azul">
+        </div>
+        <div class="var-cant">
+          <label>Cant.</label>
+          <input type="number" id="cant-${v.vid}" value="1" min="1" inputmode="numeric" oninput="calcTotal()">
+        </div>
+        <div class="var-prec">
+          <label>Precio unit.</label>
+          <input type="number" id="prec-${v.vid}" placeholder="0" inputmode="decimal" oninput="calcTotal()">
+        </div>
+        <div class="var-sub">
+          <label>Subtotal</label>
+          <input type="text" id="subt-${v.vid}" readonly placeholder="-" style="color:var(--accent);font-weight:600;font-size:0.8rem;">
+        </div>
+        <button class="btn-del-var" onclick="eliminarVariante(${it.id}, ${v.vid})" title="Quitar fila">-</button>
+      </div>
+      <div class="var-desc-row" id="vdesc-row-${v.vid}">
+        <input type="text" id="desc-${v.vid}" placeholder="Detalle: 3 bolsillos, bordado, sesgo rojo, manga 3/4..." style="width:100%;font-size:0.8rem;">
+      </div>`).join('');
+
     cont.innerHTML += `
     <div class="item-card" id="ic-${it.id}">
       <div class="item-header">
-        <span class="item-num">Item ${idx + 1}</span>
+        <span class="item-num">Producto ${idx + 1}</span>
         <button class="btn-del" onclick="eliminarItem(${it.id})">x</button>
       </div>
-      <div class="field">
-        <label>Producto</label>
-        <input type="text" id="prod-${it.id}" placeholder="Ej: DELANTAL EN DACRON, CAMISA POLO...">
+      <div class="field" style="margin-bottom:10px">
+        <label>Nombre del producto</label>
+        <input type="text" id="prod-${it.id}" placeholder="Ej: DELANTAL EN DACRON, CAMISA POLO, ZAPATO...">
       </div>
-      <div class="field">
-        <label>Descripcion / Talla / Color / Detalle</label>
-        <textarea id="desc-${it.id}" rows="2" placeholder="Ej: TALLA XL BLANCO MANGA 3/4 - SESGO NEGRO"></textarea>
-      </div>
-      <div class="row3">
-        <div class="field">
-          <label>Cantidad</label>
-          <input type="number" id="cant-${it.id}" value="1" min="1" inputmode="numeric" oninput="calcTotal()">
-        </div>
-        <div class="field">
-          <label>Precio unit.</label>
-          <input type="number" id="prec-${it.id}" placeholder="0" inputmode="decimal" oninput="calcTotal()">
-        </div>
-        <div class="field">
-          <label>Subtotal</label>
-          <input type="text" id="subt-${it.id}" readonly placeholder="-" style="color:var(--accent);font-weight:600;">
-        </div>
+      <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--mid);margin-bottom:6px">Tallas / Colores / Cantidades</div>
+      <div id="vars-${it.id}">${variantesHTML}</div>
+      <button class="btn-add-var" onclick="agregarVariante(${it.id})">+ Agregar talla / color</button>
+      <div class="item-subtotal-row">
+        <span style="font-size:0.75rem;color:var(--mid)">Total producto:</span>
+        <span id="itotal-${it.id}" style="font-weight:700;color:var(--accent)">-</span>
       </div>
     </div>`;
   });
@@ -1357,12 +1457,18 @@ function renderItems() {
 function calcTotal() {
   let total = 0;
   items.forEach(it => {
-    const c = parseFloat(document.getElementById(`cant-${it.id}`)?.value) || 0;
-    const p = parseFloat(document.getElementById(`prec-${it.id}`)?.value) || 0;
-    const s = c * p;
-    const el = document.getElementById(`subt-${it.id}`);
-    if (el) el.value = s > 0 ? '$' + fmt(s) : '';
-    total += s;
+    let itemTotal = 0;
+    it.variantes.forEach(v => {
+      const c = parseFloat(document.getElementById('cant-' + v.vid)?.value) || 0;
+      const p = parseFloat(document.getElementById('prec-' + v.vid)?.value) || 0;
+      const s = c * p;
+      const el = document.getElementById('subt-' + v.vid);
+      if (el) el.value = s > 0 ? '$' + fmt(s) : '';
+      itemTotal += s;
+    });
+    const itEl = document.getElementById('itotal-' + it.id);
+    if (itEl) itEl.textContent = itemTotal > 0 ? '$' + fmt(itemTotal) : '-';
+    total += itemTotal;
   });
   const ant = parseFloat(document.getElementById('anticipo').value) || 0;
   document.getElementById('totalDisp').textContent = '$' + fmt(total);
@@ -1466,22 +1572,38 @@ function rowsToPedidos(rows, itemRows) {
     };
   });
 
-  // Agregar items
+  // Agregar items - reconstruye estructura variantes
   if (itemRows && itemRows.length > 1) {
     const ih = itemRows[0];
     const ii = k => ih.indexOf(k);
+    // Group rows by pedidoId + num (producto) to rebuild variantes
+    const itemsTemp = {};
     itemRows.slice(1).forEach(r => {
       const pid = String(r[0]);
-      if (pedidosMap[pid]) {
-        pedidosMap[pid].items.push({
-          num:         parseInt(r[ii('Item N°')] !== undefined ? r[3] : r[3]) || 0,
-          producto:    r[ii('Producto')]    || r[4] || '',
-          descripcion: r[ii('Descripcion')] || r[5] || '',
-          cantidad:    parseInt(r[ii('Cantidad')]  || r[6]) || 1,
-          precio:      parseFloat(r[ii('Precio Unit')] || r[7]) || 0,
-        });
+      if (!pedidosMap[pid]) return;
+      const numItem = parseInt(r[3]) || 0;
+      const key = pid + '_' + numItem;
+      if (!itemsTemp[key]) {
+        itemsTemp[key] = {
+          pid, num: numItem,
+          producto: r[ii('Producto')] || r[4] || '',
+          variantes: []
+        };
       }
+      itemsTemp[key].variantes.push({
+        vid: Date.now() + Math.random(),
+        talla:    r[ii('Talla')]       || r[5] || '',
+        color:    r[ii('Color')]       || r[6] || '',
+        desc:     r[ii('Detalle')]     || r[7] || '',
+        cantidad: parseInt(r[ii('Cantidad')]    || r[8]) || 1,
+        precio:   parseFloat(r[ii('Precio Unit')] || r[9]) || 0,
+      });
     });
+    Object.values(itemsTemp).forEach(it => {
+      if (pedidosMap[it.pid]) pedidosMap[it.pid].items.push(it);
+    });
+    // Sort items by num
+    Object.values(pedidosMap).forEach(p => p.items.sort((a,b)=>a.num-b.num));
   }
 
   return Object.values(pedidosMap).sort((a, b) => b.num - a.num);
@@ -1545,19 +1667,28 @@ async function guardarYPDF() {
   if (!nombre) { showToast('Ingresa el nombre del cliente', '#D4A017'); return; }
   if (items.length === 0) { showToast('Agrega al menos un producto', '#D4A017'); return; }
 
-  const { total, saldo, ant } = calcTotal();
+  // Número de pedido: usa timestamp+random para evitar colisiones offline.
+  // El servidor (Apps Script) asignará el consecutivo final al sincronizar.
   const numP = parseInt(document.getElementById('numPedido').value) || 1;
+  // ID único global: timestamp + random, nunca colisiona aunque dos usuarios creen pedidos sin internet
+  const pedidoId = Date.now() + '_' + Math.random().toString(36).slice(2, 7);
 
   const itemsData = items.map((it, idx) => ({
     num: idx + 1,
     producto: document.getElementById('prod-' + it.id)?.value || '',
-    descripcion: document.getElementById('desc-' + it.id)?.value || '',
-    cantidad: parseInt(document.getElementById('cant-' + it.id)?.value) || 1,
-    precio: parseFloat(document.getElementById('prec-' + it.id)?.value) || 0,
+    variantes: it.variantes.map(v => ({
+      talla:    document.getElementById('talla-' + v.vid)?.value || '',
+      color:    document.getElementById('color-' + v.vid)?.value || '',
+      desc:     document.getElementById('desc-'  + v.vid)?.value || '',
+      cantidad: parseInt(document.getElementById('cant-' + v.vid)?.value) || 1,
+      precio:   parseFloat(document.getElementById('prec-' + v.vid)?.value) || 0,
+    })).filter(v => v.cantidad > 0),
   }));
 
+  const { total, saldo, ant } = calcTotal();
+
   const pedido = {
-    id: Date.now(),
+    id: pedidoId,
     num: numP,
     fechaPedido: document.getElementById('fechaPedido').value,
     fechaEntrega: document.getElementById('fechaEntrega').value,
@@ -1574,7 +1705,8 @@ async function guardarYPDF() {
     creadoEn: new Date().toISOString(),
   };
 
-  pedidos = pedidos.filter(p => p.num !== numP);
+  // Evitar duplicar por num localmente; el ID único evita colisiones entre usuarios
+  pedidos = pedidos.filter(p => p.id !== pedidoId);
   pedidos.push(pedido);
   pedidos.sort((a, b) => b.num - a.num);
 
@@ -1681,63 +1813,91 @@ function generarPDF(p) {
 
   y += 35;
 
-  // TITULO TABLA
+  // ── PRODUCTOS: cada uno con su propia sub-tabla de variantes ──
   doc.setFont('helvetica', 'bold'); doc.setFontSize(8); sc(C.acc);
   doc.text('PRODUCTOS DEL PEDIDO', M, y);
-  y += 5;
+  y += 6;
 
-  // CABECERA TABLA
-  sf(C.dark); doc.rect(M, y, W - M*2, 7.5, 'F');
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(6.5); sc(C.white);
   const TW = W - M*2;
-  doc.text('N', M + 3, y + 5);
-  doc.text('PRODUCTO', M + 10, y + 5);
-  doc.text('DESCRIPCION / DETALLE', M + 55, y + 5);
-  doc.text('CANT', M + 143, y + 5);
-  doc.text('PRECIO', M + 156, y + 5);
-  doc.text('SUBTOTAL', W - M - 2, y + 5, { align: 'right' });
-  y += 7.5;
-
-  p.items.forEach((it, i) => {
-    // Calcular altura de fila (descripcion puede ocupar 2 lineas)
-    const descLines = doc.splitTextToSize(it.descripcion || '', 86);
-    const rowH = descLines.length > 1 ? 13 : 9;
-
-    if (i % 2 === 0) { sf(C.bg); doc.rect(M, y, TW, rowH, 'F'); }
-    sd(C.light); doc.setLineWidth(0.2); doc.line(M, y + rowH, M + TW, y + rowH);
-
-    const cy = y + (rowH / 2) + 2.5;
-
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); sc(C.mid);
-    doc.text(String(it.num), M + 3, cy);
-
-    doc.setFont('helvetica', 'bold'); sc(C.dark);
-    const prodStr = doc.splitTextToSize((it.producto || '').toUpperCase(), 43)[0];
-    doc.text(prodStr, M + 10, cy);
-
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(7); sc(C.mid);
-    if (descLines.length > 1) {
-      doc.text(descLines[0], M + 55, y + 5.5);
-      doc.text(descLines[1], M + 55, y + 10);
-    } else {
-      doc.text(descLines[0] || '', M + 55, cy);
+  const checkPage = (needed) => {
+    if (y + needed > 270) {
+      doc.addPage();
+      sf(C.dark); doc.rect(0,0,W,11,'F');
+      doc.setFont('helvetica','bold'); doc.setFontSize(7); sc(C.white);
+      doc.text(p.cliente.toUpperCase() + ' — continuacion pedido #' + String(p.num).padStart(3,'0'), M, 7.5);
+      y = 18;
     }
+  };
 
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(8); sc(C.dark);
-    doc.text(String(it.cantidad), M + 147, cy, { align: 'center' });
+  p.items.forEach((it, idx) => {
+    const variantes = it.variantes || [];
+    const totalProd = variantes.reduce((s,v)=>s+(v.cantidad*(v.precio||0)),0);
+    const totalUnd  = variantes.reduce((s,v)=>s+v.cantidad,0);
+    const needed = 9 + 6.5 + variantes.length * 8 + 5;
+    checkPage(needed);
 
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); sc(C.mid);
-    doc.text(it.precio > 0 ? '$' + fmt(it.precio) : '-', M + 156, cy);
+    // Encabezado del producto (fondo oscuro)
+    sf(C.dark); doc.roundedRect(M, y, TW, 9, 1.5, 1.5, 'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(8.5); sc(C.white);
+    doc.text((idx+1) + '.  ' + (it.producto||'').toUpperCase(), M+4, y+6);
+    sc(C.acc);
+    doc.text(totalUnd + ' und.', W-M-32, y+6);
+    if (totalProd>0) { sc([180,160,130]); doc.setFontSize(7.5); doc.text('$'+fmt(totalProd), W-M-2, y+6, {align:'right'}); }
+    y += 9;
 
-    const sub = it.cantidad * it.precio;
-    sc(sub > 0 ? C.acc : C.mid);
-    doc.setFont('helvetica', 'bold');
-    doc.text(sub > 0 ? '$' + fmt(sub) : '-', W - M - 2, cy, { align: 'right' });
+    // Cabecera columnas de variantes
+    sf([235,228,218]); doc.rect(M, y, TW, 6.5, 'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(6); sc(C.mid);
+    doc.text('TALLA',  M+4,   y+4.5);
+    doc.text('COLOR',  M+28,  y+4.5);
+    doc.text('CANT.',  M+90,  y+4.5);
+    doc.text('P.UNIT', M+110, y+4.5);
+    doc.text('SUBTOTAL', W-M-2, y+4.5, {align:'right'});
+    y += 6.5;
 
-    y += rowH;
+    // Filas de variantes
+    variantes.forEach((v, vi) => {
+      const hasDesc = v.desc && v.desc.trim().length > 0;
+      const rowH = hasDesc ? 14 : 8;
+      if (vi%2===0) { sf([250,247,242]); doc.rect(M,y,TW,rowH,'F'); }
+      sd(C.light); doc.setLineWidth(0.15); doc.line(M,y+rowH,M+TW,y+rowH);
+
+      doc.setFont('helvetica','bold'); doc.setFontSize(8); sc(C.dark);
+      doc.text(v.talla||'-', M+4, y+5.5);
+
+      doc.setFont('helvetica','normal'); doc.setFontSize(7.5); sc(C.mid);
+      const colorStr = doc.splitTextToSize(v.color||'-', 58)[0];
+      doc.text(colorStr, M+28, y+5.5);
+
+      doc.setFont('helvetica','bold'); sc(C.dark);
+      doc.text(String(v.cantidad), M+97, y+5.5, {align:'center'});
+
+      doc.setFont('helvetica','normal'); sc(C.mid);
+      doc.text(v.precio>0?'$'+fmt(v.precio):'-', M+110, y+5.5);
+
+      const sub = v.cantidad*(v.precio||0);
+      sc(sub>0?C.acc:C.mid);
+      doc.setFont('helvetica','bold');
+      doc.text(sub>0?'$'+fmt(sub):'-', W-M-2, y+5.5, {align:'right'});
+
+      if (hasDesc) {
+        doc.setFont('helvetica','italic'); doc.setFontSize(6.5); sc([160,140,120]);
+        const descStr = doc.splitTextToSize('  Detalle: ' + v.desc, TW - 6)[0];
+        doc.text(descStr, M+4, y+11);
+      }
+      y += rowH;
+    });
+
+    // Subtotal del producto
+    sf([240,235,228]); doc.rect(M, y, TW, 6.5, 'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(6.5); sc(C.mid);
+    doc.text('SUBTOTAL ' + (it.producto||'').toUpperCase().split(' ')[0] + ': ' + totalUnd + ' unidades', M+4, y+4.8);
+    if (totalProd>0) { sc(C.acc); doc.text('$'+fmt(totalProd), W-M-2, y+4.8, {align:'right'}); }
+    y += 6.5;
+    y += 5; // espacio entre productos
   });
 
-  y += 7;
+  y += 2;
 
   // FINANCIERO
   const bW = 72;
@@ -1764,13 +1924,16 @@ function generarPDF(p) {
   y += 38;
 
   // FIRMAS
-  if (y < 255) {
+  if (y < 248) {
+    y += 4;
     sd(C.light); doc.setLineWidth(0.5);
-    doc.line(M, y, M + 58, y);
-    doc.line(W - M - 58, y, W - M, y);
+    // Firma cliente (izquierda)
+    doc.line(M, y + 18, M + 75, y + 18);
     doc.setFont('helvetica', 'normal'); doc.setFontSize(7); sc(C.mid);
-    doc.text('Firma cliente', M + 14, y + 5);
-    doc.text('Recibido / Costurera', W - M - 45, y + 5);
+    doc.text('Firma del cliente', M + 18, y + 23);
+    // Firma quien entrega (derecha)
+    doc.line(W - M - 75, y + 18, W - M, y + 18);
+    doc.text('Firma de quien entrega', W - M - 55, y + 23);
   }
 
   // PIE
@@ -1791,7 +1954,7 @@ async function renderDash() {
   const urgentes = pedidos.filter(p => p.urgente).length;
   const facturado = pedidos.reduce((s, p) => s + (p.total || 0), 0);
   const saldoPend = pedidos.reduce((s, p) => s + (p.saldo || 0), 0);
-  const prendas = pedidos.reduce((s, p) => s + (p.items ? p.items.reduce((a, i) => a + i.cantidad, 0) : 0), 0);
+  const prendas = pedidos.reduce((s, p) => s + (p.items ? p.items.reduce((a,i)=>a+(i.variantes||[]).reduce((b,v)=>b+v.cantidad,0),0) : 0), 0);
 
   document.getElementById('st-total').textContent = total;
   document.getElementById('st-prod').textContent  = enProd;
@@ -1813,7 +1976,7 @@ async function renderDash() {
   const last8 = [...pedidos].slice(0, 8).reverse();
   renderChart('chartItems', 'bar',
     last8.map(p => '#' + String(p.num).padStart(3,'0')),
-    last8.map(p => p.items ? p.items.reduce((s, it) => s + it.cantidad, 0) : 0),
+    last8.map(p => p.items ? p.items.reduce((s,it)=>s+(it.variantes||[]).reduce((a,v)=>a+v.cantidad,0),0) : 0),
     ['rgba(200,115,58,0.8)'], 'Prendas');
 
   // Grafica pedidos por fecha
@@ -1924,7 +2087,7 @@ function renderTabla(lista) {
   tbody.innerHTML = lista.map(p => {
     const fp = p.fechaPedido ? fmtFecha(p.fechaPedido,{day:'2-digit',month:'2-digit'}) : '-';
     const fe = p.fechaEntrega ? fmtFecha(p.fechaEntrega,{day:'2-digit',month:'2-digit'}) : '-';
-    const totalPrendas = p.items ? p.items.reduce((s,i)=>s+i.cantidad,0) : 0;
+    const totalPrendas = p.items ? p.items.reduce((s,i)=>s+(i.variantes||[]).reduce((a,v)=>a+v.cantidad,0),0) : 0;
     return `<tr style="cursor:pointer" onclick="abrirModal(${p.id})">
       <td><strong>#${String(p.num).padStart(3,'0')}</strong>${p.urgente ? ' <span class="badge badge-urg">URG</span>' : ''}</td>
       <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.cliente}</td>
@@ -1970,24 +2133,35 @@ function abrirModal(id) {
   });
 
   // Items
-  document.getElementById('modalItems').innerHTML = (p.items || []).map(it => `
+  document.getElementById('modalItems').innerHTML = (p.items || []).map(it => {
+    const variantes = it.variantes || [];
+    const totalUnd = variantes.reduce((s,v)=>s+v.cantidad,0);
+    const totalSub = variantes.reduce((s,v)=>s+v.cantidad*(v.precio||0),0);
+    const varsHTML = variantes.map(v=>`
+      <div style="display:flex;gap:10px;padding:4px 0;border-bottom:1px solid var(--lighter);font-size:0.75rem;align-items:center">
+        <span style="font-weight:700;color:var(--dark);min-width:30px">${v.talla||'-'}</span>
+        <span style="color:var(--mid);flex:1">${v.color||'-'}</span>
+        <span style="font-weight:700;color:var(--accent)">x${v.cantidad}</span>
+        <span style="color:var(--mid);min-width:55px;text-align:right">${v.precio>0?'$'+fmt(v.cantidad*v.precio):''}</span>
+      </div>`).join('');
+    return `
     <div class="item-row-modal">
       <span class="item-num-modal">${it.num}</span>
-      <div class="item-info">
+      <div class="item-info" style="flex:1">
         <div class="item-prod-modal">${it.producto}</div>
-        <div class="item-desc-modal">${it.descripcion || ''}</div>
+        <div style="margin-top:4px">${varsHTML}</div>
       </div>
       <div class="item-qty-modal">
-        <div class="qty">${it.cantidad}</div>
-        <div class="sub">${it.precio > 0 ? '$'+fmt(it.cantidad*it.precio) : 'und.'}</div>
+        <div class="qty">${totalUnd}</div>
+        <div class="sub">${totalSub>0?'$'+fmt(totalSub):'und.'}</div>
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 
   // Notas
   document.getElementById('modalNotas').innerHTML = p.notas ? `
     <div style="background:var(--lighter);border-radius:10px;padding:12px;margin-top:4px">
-      <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--accent);margin-bottom:6px">Notas costurera</div>
+      <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--accent);margin-bottom:6px">Notas del pedido</div>
       <div style="font-size:0.82rem;color:var(--dark)">${p.notas}</div>
     </div>` : '';
 
@@ -2080,8 +2254,8 @@ async function eliminarPedido(id) {
 function exportarCSV() {
   const cols = ['Num','Cliente','Telefono','Fecha Pedido','Fecha Entrega','Estado','Urgente','Total','Anticipo','Saldo','Prendas','Productos'];
   const rows = pedidos.map(p => {
-    const prendas = p.items ? p.items.reduce((s,i)=>s+i.cantidad,0) : 0;
-    const prods = p.items ? p.items.map(i => i.producto + ' x' + i.cantidad).join(' | ') : '';
+    const prendas = p.items ? p.items.reduce((s,i)=>s+(i.variantes||[]).reduce((a,v)=>a+v.cantidad,0),0) : 0;
+    const prods = p.items ? p.items.map(i => i.producto + ' x' + (i.variantes||[]).reduce((s,v)=>s+v.cantidad,0)).join(' | ') : '';
     return [
       p.num, p.cliente, p.telefono || 'N/A',
       p.fechaPedido || '', p.fechaEntrega || '', p.estado,
@@ -2141,7 +2315,7 @@ function renderClientesAgrupados() {
 
   cont.innerHTML = grupos.map(g => {
     const totalPedidos = g.pedidos.length;
-    const totalPrendas = g.pedidos.reduce((s, p) => s + (p.items || []).reduce((a, i) => a + i.cantidad, 0), 0);
+    const totalPrendas = g.pedidos.reduce((s,p)=>s+(p.items||[]).reduce((a,i)=>a+(i.variantes||[]).reduce((b,v)=>b+v.cantidad,0),0),0);
     const totalMonto   = g.pedidos.reduce((s, p) => s + (p.total || 0), 0);
     const tieneUrgente = g.pedidos.some(p => p.urgente);
     const numeros      = g.pedidos.map(p => '#' + String(p.num).padStart(3,'0')).join(', ');
@@ -2157,13 +2331,13 @@ function renderClientesAgrupados() {
     });
 
     const tiposHTML = Object.entries(porTipo).map(([tipo, items]) => {
-      const totalCantTipo = items.reduce((s, i) => s + i.cantidad, 0);
+      const totalCantTipo = items.reduce((s,i)=>s+(i.variantes||[i]).reduce ? (i.variantes||[]).reduce((a,v)=>a+v.cantidad,0) : (i.cantidad||0), 0);
       const filasHTML = items.map(it => `
         <div class="tipo-item-row">
           <span class="tipo-item-ped">#${String(it.pedidoNum).padStart(3,'0')}</span>
-          <span class="tipo-item-desc">${it.descripcion || it.producto}</span>
-          <span class="tipo-item-qty">x${it.cantidad}</span>
-          <span class="tipo-item-precio">${it.precio > 0 ? '$'+fmt(it.precio*it.cantidad) : ''}</span>
+          <span class="tipo-item-desc">${(it.variantes||[]).map(v=>(v.talla||'')+(v.color?' '+v.color:'')).join(', ')}</span>
+          <span class="tipo-item-qty">x${(it.variantes||[]).reduce((s,v)=>s+v.cantidad,0)}</span>
+          <span class="tipo-item-precio">${(it.variantes||[]).reduce((s,v)=>s+v.cantidad*(v.precio||0),0)>0?'$'+fmt((it.variantes||[]).reduce((s,v)=>s+v.cantidad*(v.precio||0),0)):''}</span>
         </div>`).join('');
       return `
         <div class="tipo-section">
@@ -2234,7 +2408,7 @@ function pdfConsolidado(clienteId) {
 
   const totalMonto  = g.pedidos.reduce((s,p)=>s+(p.total||0),0);
   const totalSaldo  = g.pedidos.reduce((s,p)=>s+(p.saldo||0),0);
-  const totalPrend  = g.pedidos.reduce((s,p)=>s+(p.items||[]).reduce((a,i)=>a+i.cantidad,0),0);
+  const totalPrend  = g.pedidos.reduce((s,p)=>s+(p.items||[]).reduce((a,i)=>a+(i.variantes||[]).reduce((b,v)=>b+v.cantidad,0),0),0);
   const tieneUrg    = g.pedidos.some(p=>p.urgente);
   const numeros     = g.pedidos.map(p=>'#'+String(p.num).padStart(3,'0')).join(' / ');
   const telefono    = g.pedidos.find(p=>p.telefono && p.telefono!=='N/A')?.telefono || 'N/A';
@@ -2458,8 +2632,8 @@ async function recargarDesdeDrive() {
 
 // ─── CREDENCIALES (cámbialas aquí) ───
 const USUARIOS = [
-  { user: 'admin',    pass: 'textil2026', nombre: 'Administrador' },
-  { user: 'usuario',  pass: 'costura123', nombre: 'User'     },
+  { user: 'admin',    pass: 'textil2024', nombre: 'Administrador' },
+  { user: 'costura',  pass: 'costura123', nombre: 'Costurera'     },
 ];
 const SESSION_KEY = 'textilpro_session';
 
@@ -2538,11 +2712,13 @@ async function exportarExcel() {
 
   // ── HOJA 2: Items / Productos ──
   const itemsData = [
-    ['N° Pedido','Cliente','Item','Producto','Descripcion','Cantidad','Precio Unit','Subtotal'],
-    ...pedidos.flatMap(p => (p.items||[]).map(it => [
-      p.num, p.cliente, it.num, it.producto, it.descripcion,
-      it.cantidad, it.precio, it.cantidad * it.precio
-    ]))
+    ['N° Pedido','Cliente','Item','Producto','Talla','Color','Detalle','Cantidad','Precio Unit','Subtotal'],
+    ...pedidos.flatMap(p => (p.items||[]).flatMap(it =>
+      (it.variantes||[]).map(v => [
+        p.num, p.cliente, it.num, it.producto,
+        v.talla||'', v.color||'', v.desc||'', v.cantidad, v.precio||0, v.cantidad*(v.precio||0)
+      ])
+    ))
   ];
   const wsIt = XLSX.utils.aoa_to_sheet(itemsData);
   wsIt['!cols'] = [8,25,5,22,30,8,10,10].map(w=>({wch:w}));
@@ -2553,7 +2729,7 @@ async function exportarExcel() {
   pedidos.forEach(p => {
     if (!clienteMap[p.cliente]) clienteMap[p.cliente] = { pedidos:0, prendas:0, total:0, saldo:0 };
     clienteMap[p.cliente].pedidos++;
-    clienteMap[p.cliente].prendas += (p.items||[]).reduce((s,i)=>s+i.cantidad,0);
+    clienteMap[p.cliente].prendas += (p.items||[]).reduce((s,i)=>s+(i.variantes||[]).reduce((a,v)=>a+v.cantidad,0),0);
     clienteMap[p.cliente].total   += p.total || 0;
     clienteMap[p.cliente].saldo   += p.saldo || 0;
   });
