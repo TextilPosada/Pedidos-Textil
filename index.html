@@ -1820,11 +1820,16 @@ function generarPDF(p) {
 
   const TW = W - M*2;
   const checkPage = (needed) => {
-    if (y + needed > 270) {
+    if (y + needed > 274) {
       doc.addPage();
       sf(C.dark); doc.rect(0,0,W,11,'F');
       doc.setFont('helvetica','bold'); doc.setFontSize(7); sc(C.white);
-      doc.text(p.cliente.toUpperCase() + ' — continuacion pedido #' + String(p.num).padStart(3,'0'), M, 7.5);
+      doc.text(
+        'Pedido #' + String(p.num).padStart(3,'0') +
+        '  —  ' + p.cliente.toUpperCase() + '  (continuacion)',
+        M, 7.5
+      );
+      doc.text('Generado: ' + new Date().toLocaleDateString('es-CO'), W-M, 7.5, {align:'right'});
       y = 18;
     }
   };
@@ -1897,7 +1902,40 @@ function generarPDF(p) {
     y += 5; // espacio entre productos
   });
 
-  y += 2;
+  // ── HELPER: pie de página en la página actual ──
+  const dibujarPie = () => {
+    const totalPages = doc.internal.getNumberOfPages();
+    for (let pg = 1; pg <= totalPages; pg++) {
+      doc.setPage(pg);
+      sf(C.dark); doc.rect(0, 287, W, 10, 'F');
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(6.5); sc([100,85,70]);
+      doc.text(
+        'Pedido #' + String(p.num).padStart(3,'0') +
+        ' | ' + p.cliente +
+        ' | Pag. ' + pg + ' de ' + totalPages +
+        ' | ' + new Date().toLocaleDateString('es-CO'),
+        W/2, 293, { align: 'center' }
+      );
+    }
+  };
+
+  // ── BLOQUE FINAL: financiero + notas + firmas ──
+  // Necesitamos ~42mm para financiero+notas y ~30mm para firmas
+  const espacioFinal = 42 + (p.notas ? 0 : 0) + 30;
+  if (y + espacioFinal > 274) {
+    doc.addPage();
+    // Mini encabezado en página de cierre
+    sf(C.dark); doc.rect(0, 0, W, 11, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7); sc(C.white);
+    doc.text(
+      'Pedido #' + String(p.num).padStart(3,'0') +
+      '  —  ' + p.cliente.toUpperCase() + '  —  Resumen y firmas',
+      M, 7.5
+    );
+    y = 18;
+  } else {
+    y += 4;
+  }
 
   // FINANCIERO
   const bW = 72;
@@ -1915,31 +1953,32 @@ function generarPDF(p) {
     const nW = W - M*2 - bW - 8;
     sf(C.bg); doc.roundedRect(M, y, nW, 32, 2, 2, 'F');
     doc.setFont('helvetica', 'bold'); doc.setFontSize(7); sc(C.acc);
-    doc.text('NOTAS PARA LA COSTURERA', M + 4, y + 7);
+    doc.text('NOTAS DEL PEDIDO', M + 4, y + 7);
     doc.setFont('helvetica', 'normal'); sc(C.dark);
     const nl = doc.splitTextToSize(p.notas, nW - 8);
-    doc.text(nl.slice(0, 3), M + 4, y + 14);
+    doc.text(nl.slice(0, 4), M + 4, y + 14);
   }
 
   y += 38;
 
-  // FIRMAS
-  if (y < 248) {
-    y += 4;
-    sd(C.light); doc.setLineWidth(0.5);
-    // Firma cliente (izquierda)
-    doc.line(M, y + 18, M + 75, y + 18);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(7); sc(C.mid);
-    doc.text('Firma del cliente', M + 18, y + 23);
-    // Firma quien entrega (derecha)
-    doc.line(W - M - 75, y + 18, W - M, y + 18);
-    doc.text('Firma de quien entrega', W - M - 55, y + 23);
+  // FIRMAS — siempre con espacio suficiente
+  if (y + 28 > 274) {
+    doc.addPage();
+    sf(C.dark); doc.rect(0, 0, W, 11, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7); sc(C.white);
+    doc.text('Pedido #' + String(p.num).padStart(3,'0') + '  —  Firmas', M, 7.5);
+    y = 22;
   }
 
-  // PIE
-  sf(C.dark); doc.rect(0, 287, W, 10, 'F');
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(6.5); sc([100,85,70]);
-  doc.text('Pedido #' + String(p.num).padStart(3,'0') + ' | ' + p.cliente + ' | ' + new Date().toLocaleDateString('es-CO'), W/2, 293, { align: 'center' });
+  sd(C.light); doc.setLineWidth(0.5);
+  doc.line(M,        y + 18, M + 75,        y + 18);
+  doc.line(W-M-75,   y + 18, W - M,         y + 18);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7); sc(C.mid);
+  doc.text('Firma del cliente',       M + 18,     y + 24);
+  doc.text('Firma de quien entrega',  W - M - 55, y + 24);
+
+  // PIE en todas las páginas (se ejecuta al final)
+  dibujarPie();
 
   doc.save('Pedido-' + String(p.num).padStart(3,'0') + '-' + (p.cliente.split(' ')[0] || 'cliente') + '.pdf');
 }
