@@ -2135,26 +2135,63 @@ function abrirModal(id) {
   // Items
   document.getElementById('modalItems').innerHTML = (p.items || []).map(it => {
     const variantes = it.variantes || [];
-    const totalUnd = variantes.reduce((s,v)=>s+v.cantidad,0);
-    const totalSub = variantes.reduce((s,v)=>s+v.cantidad*(v.precio||0),0);
-    const varsHTML = variantes.map(v=>`
-      <div style="display:flex;gap:10px;padding:4px 0;border-bottom:1px solid var(--lighter);font-size:0.75rem;align-items:center">
-        <span style="font-weight:700;color:var(--dark);min-width:30px">${v.talla||'-'}</span>
-        <span style="color:var(--mid);flex:1">${v.color||'-'}</span>
-        <span style="font-weight:700;color:var(--accent)">x${v.cantidad}</span>
-        <span style="color:var(--mid);min-width:55px;text-align:right">${v.precio>0?'$'+fmt(v.cantidad*v.precio):''}</span>
-      </div>`).join('');
+    const totalUnd = variantes.reduce((s,v) => s + (parseInt(v.cantidad)||0), 0);
+    const totalSub = variantes.reduce((s,v) => s + (parseInt(v.cantidad)||0) * (parseFloat(v.precio)||0), 0);
+
+    const filasHTML = variantes.map((v, vi) => {
+      const cant = parseInt(v.cantidad) || 0;
+      const prec = parseFloat(v.precio) || 0;
+      const sub  = cant * prec;
+      return `
+      <tr style="background:${vi%2===0?'var(--lighter)':'#fff'}">
+        <td style="padding:6px 8px;font-weight:700;color:var(--dark);font-size:0.8rem;white-space:nowrap">${v.talla||'-'}</td>
+        <td style="padding:6px 8px;color:var(--mid);font-size:0.78rem">${v.color||'-'}</td>
+        <td style="padding:6px 8px;font-weight:700;color:var(--accent);font-size:0.85rem;text-align:center">${cant}</td>
+        <td style="padding:6px 8px;color:var(--mid);font-size:0.78rem;text-align:right">${prec>0?'$'+fmt(prec):'-'}</td>
+        <td style="padding:6px 8px;font-weight:700;color:var(--accent);font-size:0.8rem;text-align:right">${sub>0?'$'+fmt(sub):'-'}</td>
+      </tr>
+      ${v.desc ? `<tr style="background:${vi%2===0?'var(--lighter)':'#fff'}">
+        <td colspan="5" style="padding:2px 8px 7px 8px;font-size:0.72rem;color:var(--mid);font-style:italic;border-bottom:1px solid var(--light)">
+          Detalle: ${v.desc}
+        </td>
+      </tr>` : `<tr><td colspan="5" style="padding:0;border-bottom:1px solid var(--light)"></td></tr>`}`;
+    }).join('');
+
     return `
-    <div class="item-row-modal">
-      <span class="item-num-modal">${it.num}</span>
-      <div class="item-info" style="flex:1">
-        <div class="item-prod-modal">${it.producto}</div>
-        <div style="margin-top:4px">${varsHTML}</div>
+    <div style="margin-bottom:14px;border:1px solid var(--light);border-radius:10px;overflow:hidden">
+      <!-- Encabezado producto -->
+      <div style="background:var(--dark);padding:8px 12px;display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="background:rgba(200,115,58,0.25);color:var(--accent);font-size:0.68rem;font-weight:700;padding:2px 8px;border-radius:20px">${it.num}</span>
+          <span style="color:#fff;font-weight:700;font-size:0.88rem">${it.producto||''}</span>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="color:var(--accent);font-weight:700;font-size:0.9rem">${totalSub>0?'$'+fmt(totalSub):''}</div>
+          <div style="color:rgba(255,255,255,0.5);font-size:0.68rem">${totalUnd} und.</div>
+        </div>
       </div>
-      <div class="item-qty-modal">
-        <div class="qty">${totalUnd}</div>
-        <div class="sub">${totalSub>0?'$'+fmt(totalSub):'und.'}</div>
-      </div>
+      <!-- Cabecera columnas -->
+      <table style="width:100%;border-collapse:collapse">
+        <thead>
+          <tr style="background:var(--lighter)">
+            <th style="padding:5px 8px;font-size:0.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--mid);text-align:left">Talla</th>
+            <th style="padding:5px 8px;font-size:0.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--mid);text-align:left">Color</th>
+            <th style="padding:5px 8px;font-size:0.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--mid);text-align:center">Cant.</th>
+            <th style="padding:5px 8px;font-size:0.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--mid);text-align:right">P. Unit</th>
+            <th style="padding:5px 8px;font-size:0.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--mid);text-align:right">Subtotal</th>
+          </tr>
+        </thead>
+        <tbody>${filasHTML}</tbody>
+        <!-- Subtotal del producto -->
+        <tfoot>
+          <tr style="background:var(--lighter)">
+            <td colspan="2" style="padding:6px 8px;font-size:0.72rem;color:var(--mid);font-weight:600">Total ${it.producto||''}</td>
+            <td style="padding:6px 8px;font-weight:700;color:var(--dark);text-align:center">${totalUnd}</td>
+            <td style="padding:6px 8px"></td>
+            <td style="padding:6px 8px;font-weight:700;color:var(--accent);text-align:right">${totalSub>0?'$'+fmt(totalSub):'-'}</td>
+          </tr>
+        </tfoot>
+      </table>
     </div>`;
   }).join('');
 
@@ -2632,8 +2669,8 @@ async function recargarDesdeDrive() {
 
 // ─── CREDENCIALES (cámbialas aquí) ───
 const USUARIOS = [
-  { user: 'admin',    pass: 'textil2026', nombre: 'Administrador' },
-  { user: 'user',  pass: 'costura123', nombre: 'Usuario'     },
+  { user: 'admin',    pass: 'textil2024', nombre: 'Administrador' },
+  { user: 'costura',  pass: 'costura123', nombre: 'Costurera'     },
 ];
 const SESSION_KEY = 'textilpro_session';
 
