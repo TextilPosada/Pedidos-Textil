@@ -626,6 +626,34 @@ tr:hover td { background: var(--lighter); }
 /* overflow tabla mobile */
 .overflow-x { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
+/* ── Tabla desktop / Tarjetas movil ── */
+.dash-table-desktop { display: block; }
+.dash-cards-mobile  { display: none;  }
+@media (max-width: 640px) {
+  .dash-table-desktop { display: none !important; }
+  .dash-cards-mobile  { display: block; padding: 8px 10px; }
+}
+.pedido-card-mobile {
+  background: var(--card); border: 1px solid var(--light);
+  border-radius: 12px; padding: 12px 14px; margin-bottom: 8px;
+  cursor: pointer; transition: box-shadow 0.15s;
+}
+.pedido-card-mobile:active { box-shadow: 0 0 0 2px var(--accent); }
+.pcm-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:5px; }
+.pcm-num { font-family:'Libre Baskerville',serif; font-size:0.95rem; font-weight:700; color:var(--accent); }
+.pcm-cliente { font-size:0.88rem; font-weight:600; color:var(--dark); margin-bottom:4px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:190px; }
+.pcm-meta { display:flex; gap:8px; flex-wrap:wrap; align-items:center;
+  font-size:0.7rem; color:var(--mid); margin-bottom:4px; }
+.pcm-total { font-weight:700; color:var(--dark); font-size:0.88rem; }
+.pcm-actions { margin-top:10px; display:flex; gap:8px; }
+.pcm-btn { flex:1; padding:8px; border-radius:8px; border:1.5px solid var(--light);
+  background:var(--lighter); font-family:'Sora',sans-serif; font-size:0.75rem;
+  font-weight:600; color:var(--dark); cursor:pointer; text-align:center;
+  transition:all 0.15s; }
+.pcm-btn.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+.pcm-btn:active { opacity:0.8; transform:scale(0.97); }
+
 @media (max-width: 380px) {
   .row3 { grid-template-columns: 1fr 1fr; }
   .topbar-brand { font-size: 0.88rem; }
@@ -1289,7 +1317,8 @@ tr:hover td { background: var(--lighter); }
           <button class="filt-chip" data-f="Urgente" onclick="setFiltro(this)">Urgentes</button>
         </div>
       </div>
-      <div class="overflow-x">
+      <!-- DESKTOP: tabla normal -->
+      <div class="overflow-x dash-table-desktop">
         <table>
           <thead><tr>
             <th>#</th><th>Cliente</th><th>F. Pedido</th><th>F. Entrega</th>
@@ -1299,6 +1328,10 @@ tr:hover td { background: var(--lighter); }
             <tr><td colspan="8"><div class="empty"><div class="empty-ico">📭</div><p>Sin pedidos aún</p></div></td></tr>
           </tbody>
         </table>
+      </div>
+      <!-- MÓVIL: tarjetas -->
+      <div class="dash-cards-mobile" id="tablaTarjetas">
+        <div class="empty"><div class="empty-ico">📭</div><p>Sin pedidos aún</p></div>
       </div>
     </div>
 
@@ -1451,7 +1484,7 @@ function renderItems() {
           <label>Subtotal</label>
           <input type="text" id="subt-${v.vid}" readonly placeholder="-" style="color:var(--accent);font-weight:600;font-size:0.8rem;">
         </div>
-        <button class="btn-del-var" onclick="eliminarVariante(${it.id}, ${v.vid})" title="Quitar fila">-</button>
+        <button class="btn-del-var" onclick="eliminarVariante('${it.id}', '${v.vid}')" title="Quitar fila">-</button>
       </div>
       <div class="var-desc-row" id="vdesc-row-${v.vid}">
         <input type="text" id="desc-${v.vid}" placeholder="Detalle: 3 bolsillos, bordado, sesgo rojo, manga 3/4..." style="width:100%;font-size:0.8rem;">
@@ -1461,7 +1494,7 @@ function renderItems() {
     <div class="item-card" id="ic-${it.id}">
       <div class="item-header">
         <span class="item-num">Producto ${idx + 1}</span>
-        <button class="btn-del" onclick="eliminarItem(${it.id})">x</button>
+        <button class="btn-del" onclick="eliminarItem('${it.id}')">x</button>
       </div>
       <div class="field" style="margin-bottom:10px">
         <label>Nombre del producto</label>
@@ -1469,7 +1502,7 @@ function renderItems() {
       </div>
       <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--mid);margin-bottom:6px">Tallas / Colores / Cantidades</div>
       <div id="vars-${it.id}">${variantesHTML}</div>
-      <button class="btn-add-var" onclick="agregarVariante(${it.id})">+ Agregar talla / color</button>
+      <button class="btn-add-var" onclick="agregarVariante('${it.id}')">+ Agregar talla / color</button>
       <div class="item-subtotal-row">
         <span style="font-size:0.75rem;color:var(--mid)">Total producto:</span>
         <span id="itotal-${it.id}" style="font-weight:700;color:var(--accent)">-</span>
@@ -2139,11 +2172,61 @@ function filtrarTabla(q) {
 
 // ─── TABLA ───
 function renderTabla(lista) {
-  const tbody = document.getElementById('tablaTbody');
+  const tbody    = document.getElementById('tablaTbody');
+  const tarjetas = document.getElementById('tablaTarjetas');
+  const badgeMap = {
+    'En produccion':'<span class="badge badge-prod">En prod.</span>',
+    'Pendiente':    '<span class="badge badge-pend">Pendiente</span>',
+    'Entregado':    '<span class="badge badge-ent">Entregado</span>',
+    'Cancelado':    '<span class="badge badge-can">Cancelado</span>',
+  };
   if (!lista.length) {
-    tbody.innerHTML = '<tr><td colspan="8"><div class="empty"><div class="empty-ico">📭</div><p>Sin pedidos en esta vista</p></div></td></tr>';
+    const empty = '<div class="empty"><div class="empty-ico">📭</div><p>Sin pedidos en esta vista</p></div>';
+    tbody.innerHTML = '<tr><td colspan="8">' + empty + '</td></tr>';
+    if (tarjetas) tarjetas.innerHTML = empty;
     return;
   }
+  const prendas = p => (p.items||[]).reduce((s,i)=>s+(i.variantes||[]).reduce((a,v)=>a+(parseInt(v.cantidad)||0),0),0);
+
+  // DESKTOP tabla
+  tbody.innerHTML = lista.map(p => {
+    const fp = fmtFecha(p.fechaPedido,  {day:'2-digit',month:'2-digit'});
+    const fe = fmtFecha(p.fechaEntrega, {day:'2-digit',month:'2-digit'});
+    return '<tr style="cursor:pointer" onclick="abrirModal(\'' + p.id + '\')">' +
+      '<td><strong>#' + String(p.num).padStart(3,'0') + '</strong>' + (p.urgente?' <span class="badge badge-urg">URG</span>':'') + '</td>' +
+      '<td style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + p.cliente + '</td>' +
+      '<td>' + fp + '</td><td>' + fe + '</td>' +
+      '<td>' + (badgeMap[p.estado]||p.estado) + '</td>' +
+      '<td>' + prendas(p) + '</td>' +
+      '<td>' + (p.total>0?'$'+fmt(p.total):'-') + '</td>' +
+      '<td onclick="event.stopPropagation()">' +
+        '<button class="btn-tbl" onclick="reimprimirPDF(\'' + p.id + '\')">PDF</button>' +
+      '</td></tr>';
+  }).join('');
+
+  // MÓVIL tarjetas
+  if (tarjetas) tarjetas.innerHTML = lista.map(p => {
+    const fp = fmtFecha(p.fechaPedido,  {day:'2-digit',month:'2-digit',year:'numeric'});
+    const fe = fmtFecha(p.fechaEntrega, {day:'2-digit',month:'2-digit',year:'numeric'});
+    return '<div class="pedido-card-mobile" onclick="abrirModal(\'' + p.id + '\')">' +
+      '<div class="pcm-top">' +
+        '<span class="pcm-num">#' + String(p.num).padStart(3,'0') + (p.urgente?' 🔴':'') + '</span>' +
+        '<span class="pcm-total">' + (p.total>0?'$'+fmt(p.total):'-') + '</span>' +
+      '</div>' +
+      '<div class="pcm-cliente">' + p.cliente + '</div>' +
+      '<div class="pcm-meta">' +
+        (badgeMap[p.estado]||p.estado) +
+        '<span>Ped: ' + fp + '</span>' +
+        '<span>Ent: ' + fe + '</span>' +
+        '<span>' + prendas(p) + ' prendas</span>' +
+      '</div>' +
+      '<div class="pcm-actions" onclick="event.stopPropagation()">' +
+        '<button class="pcm-btn" onclick="abrirModal(\'' + p.id + '\')">Ver detalle</button>' +
+        '<button class="pcm-btn primary" onclick="reimprimirPDF(\'' + p.id + '\')">Descargar PDF</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
   const badgeMap = {
     'En produccion': '<span class="badge badge-prod">En prod.</span>',
     'Pendiente':     '<span class="badge badge-pend">Pendiente</span>',
@@ -2154,7 +2237,7 @@ function renderTabla(lista) {
     const fp = p.fechaPedido ? fmtFecha(p.fechaPedido,{day:'2-digit',month:'2-digit'}) : '-';
     const fe = p.fechaEntrega ? fmtFecha(p.fechaEntrega,{day:'2-digit',month:'2-digit'}) : '-';
     const totalPrendas = p.items ? p.items.reduce((s,i)=>s+(i.variantes||[]).reduce((a,v)=>a+v.cantidad,0),0) : 0;
-    return `<tr style="cursor:pointer" onclick="abrirModal(${p.id})">
+    return `<tr style="cursor:pointer" onclick="abrirModal('${p.id}')">
       <td><strong>#${String(p.num).padStart(3,'0')}</strong>${p.urgente ? ' <span class="badge badge-urg">URG</span>' : ''}</td>
       <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.cliente}</td>
       <td>${fp}</td>
@@ -2163,7 +2246,7 @@ function renderTabla(lista) {
       <td>${totalPrendas}</td>
       <td>${p.total > 0 ? '$'+fmt(p.total) : '-'}</td>
       <td onclick="event.stopPropagation()">
-        <button class="btn-tbl" onclick="reimprimirPDF(${p.id})">
+        <button class="btn-tbl" onclick="reimprimirPDF('${p.id}')">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align:middle;margin-right:3px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>PDF
         </button>
       </td>
@@ -2173,7 +2256,7 @@ function renderTabla(lista) {
 
 // ─── MODAL DETALLE ───
 function abrirModal(id) {
-  const p = pedidos.find(x => x.id === id);
+  const p = pedidos.find(x => String(x.id) === String(id));
   if (!p) return;
   pedidoModal = p;
 
@@ -2826,8 +2909,8 @@ async function recargarDesdeDrive() {
 
 // ─── CREDENCIALES (cámbialas aquí) ───
 const USUARIOS = [
-  { user: 'admin',    pass: 'textil2026', nombre: 'Administrador' },
-  { user: 'user',  pass: 'costura123', nombre: 'Usuario'     },
+  { user: 'admin',    pass: 'textil2024', nombre: 'Administrador' },
+  { user: 'costura',  pass: 'costura123', nombre: 'Costurera'     },
 ];
 const SESSION_KEY = 'textilpro_session';
 
