@@ -368,6 +368,23 @@ input[type=hidden] { display: none; }
 }
 .chart-wrap { position: relative; height: 200px; }
 
+/* Charts grid responsivo */
+.charts-grid-inner {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+@media (max-width: 600px) {
+  .charts-grid-inner { grid-template-columns: 1fr; }
+  #btnToggleCharts { display: block !important; }
+  #chartsGrid { display: none; }
+  #chartsGrid.open { display: block; }
+}
+@media (min-width: 601px) {
+  #btnToggleCharts { display: none !important; }
+  #chartsGrid { display: block !important; }
+}
+
 /* TABLA DE PEDIDOS */
 .table-wrap {
   background: var(--card);
@@ -1205,27 +1222,35 @@ tr:hover td { background: var(--lighter); }
     </div>
   </div>
 
-  <!-- CHARTS fila 1 -->
-  <div class="row2" style="gap:10px;margin-bottom:14px">
-    <div class="chart-card">
-      <div class="chart-title">📊 Por estado</div>
-      <div class="chart-wrap"><canvas id="chartEstado"></canvas></div>
-    </div>
-    <div class="chart-card">
-      <div class="chart-title">📦 Prendas por pedido</div>
-      <div class="chart-wrap"><canvas id="chartItems"></canvas></div>
-    </div>
-  </div>
-
-  <!-- CHARTS fila 2 -->
-  <div class="row2" style="gap:10px;margin-bottom:14px">
-    <div class="chart-card">
-      <div class="chart-title">📅 Pedidos por fecha</div>
-      <div class="chart-wrap"><canvas id="chartFecha"></canvas></div>
-    </div>
-    <div class="chart-card">
-      <div class="chart-title">💵 Ingresos por pedido</div>
-      <div class="chart-wrap"><canvas id="chartIngresos"></canvas></div>
+  <!-- CHARTS — responsivo: acordeon en movil, grid 2x2 en desktop -->
+  <div id="chartsSection" style="margin-bottom:14px">
+    <!-- Botón acordeón solo visible en móvil -->
+    <button id="btnToggleCharts" onclick="toggleCharts()"
+      style="display:none;width:100%;padding:10px 14px;background:var(--card);
+             border:1px solid var(--light);border-radius:12px;font-family:'Sora',sans-serif;
+             font-size:0.82rem;font-weight:600;color:var(--dark);cursor:pointer;
+             margin-bottom:10px;text-align:left;box-shadow:var(--shadow)">
+      📊 Ver gráficas <span id="chartArrow" style="float:right">▼</span>
+    </button>
+    <div id="chartsGrid">
+      <div class="charts-grid-inner">
+        <div class="chart-card">
+          <div class="chart-title">📊 Por estado</div>
+          <div class="chart-wrap"><canvas id="chartEstado"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">📦 Prendas por pedido</div>
+          <div class="chart-wrap"><canvas id="chartItems"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">📅 Pedidos por fecha</div>
+          <div class="chart-wrap"><canvas id="chartFecha"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">💵 Ingresos por pedido</div>
+          <div class="chart-wrap"><canvas id="chartIngresos"></canvas></div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -2282,8 +2307,9 @@ async function cambiarEstado(btn) {
 
 // ─── REIMPRIMIR / ELIMINAR ───
 function reimprimirPDF(id) {
-  const p = pedidos.find(x => x.id === id);
+  const p = pedidos.find(x => String(x.id) === String(id));
   if (p) { generarPDF(p); showToast('PDF generado'); }
+  else showToast('Pedido no encontrado', '#D4A017');
 }
 
 function toggleZonaPeligro() {
@@ -2476,238 +2502,316 @@ function renderClientesAgrupados() {
 // ─── PDF CONSOLIDADO POR CLIENTE ───
 function pdfConsolidado(clienteId) {
   const g = window._gruposCliente?.[clienteId];
-  if (!g) return;
+  if (!g) { showToast('No hay datos del cliente', '#D4A017'); return; }
 
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-  const W = 210, M = 14;
+  const W = 210, M = 14, TW = W - M * 2;
 
+  // Paleta
   const C = {
-    dark:  [26, 18, 8],
-    acc:   [200, 115, 58],
-    mid:   [122, 102, 82],
-    light: [226, 217, 206],
-    bg:    [245, 242, 237],
-    white: [255, 255, 255],
-    red:   [192, 57, 43],
-    green: [58, 125, 68],
+    dark:  [26, 18, 8],   acc:   [200, 115, 58],
+    mid:   [122, 102, 82], light: [226, 217, 206],
+    bg:    [245, 242, 237], white: [255, 255, 255],
+    red:   [192, 57, 43],  green: [58, 125, 68],
   };
-  const sc = a => doc.setTextColor(a[0],a[1],a[2]);
-  const sf = a => doc.setFillColor(a[0],a[1],a[2]);
-  const sd = a => doc.setDrawColor(a[0],a[1],a[2]);
+  const sc = a => doc.setTextColor(a[0], a[1], a[2]);
+  const sf = a => doc.setFillColor(a[0], a[1], a[2]);
+  const sd = a => doc.setDrawColor(a[0], a[1], a[2]);
 
-  const totalMonto  = g.pedidos.reduce((s,p)=>s+(p.total||0),0);
-  const totalSaldo  = g.pedidos.reduce((s,p)=>s+(p.saldo||0),0);
-  const totalPrend  = g.pedidos.reduce((s,p)=>s+(p.items||[]).reduce((a,i)=>a+(i.variantes||[]).reduce((b,v)=>b+v.cantidad,0),0),0);
-  const tieneUrg    = g.pedidos.some(p=>p.urgente);
-  const numeros     = g.pedidos.map(p=>'#'+String(p.num).padStart(3,'0')).join(' / ');
-  const telefono    = g.pedidos.find(p=>p.telefono && p.telefono!=='N/A')?.telefono || 'N/A';
+  // Solo pedidos activos (no cancelados) para montos
+  const activos    = g.pedidos.filter(p => p.estado !== 'Cancelado');
+  const totalMonto = activos.reduce((s, p) => s + (p.total || 0), 0);
+  const totalSaldo = activos.reduce((s, p) => s + (p.saldo || 0), 0);
+  const totalPrend = g.pedidos.reduce((s, p) =>
+    s + (p.items || []).reduce((a, i) =>
+      a + (i.variantes || []).reduce((b, v) => b + (parseInt(v.cantidad) || 0), 0), 0), 0);
+  const tieneUrg = g.pedidos.some(p => p.urgente);
+  const numeros  = g.pedidos.map(p => '#' + String(p.num).padStart(3,'0')).join(' / ');
+  const telefono = g.pedidos.find(p => p.telefono && p.telefono !== 'N/A')?.telefono || 'N/A';
+  let totalPags  = 0; // se llena al final
 
-  // ── ENCABEZADO ──
-  sf(C.dark); doc.rect(0,0,W,42,'F');
+  // ── Número de páginas al final ──
+  const dibujarPiesConsolidado = () => {
+    const np = doc.internal.getNumberOfPages();
+    for (let pg = 1; pg <= np; pg++) {
+      doc.setPage(pg);
+      sf(C.dark); doc.rect(0, 287, W, 10, 'F');
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(6.5); sc([100, 85, 70]);
+      doc.text(
+        'Consolidado: ' + g.nombre + '  |  ' + g.pedidos.length + ' pedidos  |  Pag. ' + pg + ' de ' + np +
+        '  |  ' + new Date().toLocaleDateString('es-CO'),
+        W / 2, 293, { align: 'center' }
+      );
+    }
+  };
 
-  doc.setFont('helvetica','bold'); doc.setFontSize(9); sc([180,160,130]);
+  // ── Mini header para páginas de continuación ──
+  const miniHeader = (titulo) => {
+    sf(C.dark); doc.rect(0, 0, W, 11, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7); sc(C.white);
+    doc.text(g.nombre.toUpperCase() + '  —  ' + titulo, M, 7.5);
+    doc.text('Generado: ' + new Date().toLocaleDateString('es-CO'), W - M, 7.5, { align: 'right' });
+    return 18;
+  };
+
+  // ── Verificar espacio y saltar página si es necesario ──
+  let y = 0;
+  const checkPage = (needed, titulo) => {
+    if (y + needed > 274) {
+      doc.addPage();
+      y = miniHeader(titulo || 'continuacion');
+    }
+  };
+
+  // ══════════════════════════════════════════════
+  //  PÁGINA 1 — ENCABEZADO
+  // ══════════════════════════════════════════════
+  sf(C.dark); doc.rect(0, 0, W, 44, 'F');
+
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(8); sc([180, 160, 130]);
   doc.text('RESUMEN CONSOLIDADO DE PEDIDOS', M, 10);
 
-  doc.setFont('helvetica','bold'); doc.setFontSize(16); sc(C.white);
-  doc.text(g.nombre.toUpperCase(), M, 21);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(17); sc(C.white);
+  doc.text(g.nombre.toUpperCase(), M, 22);
 
-  doc.setFont('helvetica','normal'); doc.setFontSize(7.5); sc([180,160,130]);
-  doc.text('Tel: ' + telefono, M, 28);
-  doc.text('Pedidos: ' + numeros, M, 34);
-  doc.text('Generado: ' + new Date().toLocaleDateString('es-CO'), M, 39.5);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); sc([180, 160, 130]);
+  doc.text('Tel: ' + telefono, M, 29);
+  doc.text('Pedidos incluidos: ' + numeros, M, 35);
+  doc.text('Generado: ' + new Date().toLocaleDateString('es-CO'), M, 41);
 
-  // Totales arriba derecha
-  doc.setFont('helvetica','bold'); doc.setFontSize(13); sc(C.acc);
-  doc.text('$' + fmt(totalMonto), W-M, 20, { align:'right' });
-  doc.setFont('helvetica','normal'); doc.setFontSize(7.5); sc([180,160,130]);
-  doc.text('Total facturado', W-M, 26, { align:'right' });
-  sc([200,100,100]);
-  doc.text('Saldo: $' + fmt(totalSaldo), W-M, 33, { align:'right' });
-  doc.text(totalPrend + ' prendas totales', W-M, 39, { align:'right' });
+  // Totales — solo activos
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(13); sc(C.acc);
+  doc.text('$' + fmt(totalMonto), W - M, 21, { align: 'right' });
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7); sc([180, 160, 130]);
+  doc.text('Total facturado (activos)', W - M, 27, { align: 'right' });
+  sc([200, 100, 100]);
+  doc.text('Saldo: $' + fmt(totalSaldo), W - M, 33, { align: 'right' });
+  sc([180, 160, 130]);
+  doc.text(totalPrend + ' prendas en total', W - M, 39, { align: 'right' });
 
   if (tieneUrg) {
-    sf(C.red); doc.roundedRect(M, 0, 22, 7, 1, 1, 'F');
-    doc.setFont('helvetica','bold'); doc.setFontSize(6); sc(C.white);
-    doc.text('URGENTE', M+11, 5, { align:'center' });
+    sf(C.red); doc.roundedRect(M, 1, 22, 7, 1.5, 1.5, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(6); sc(C.white);
+    doc.text('URGENTE', M + 11, 5.5, { align: 'center' });
   }
 
-  let y = 50;
+  y = 52;
 
-  // ── SECCIONES POR TIPO DE PRENDA ──
-  // Agrupar todos los items de todos los pedidos por tipo normalizado
+  // ══════════════════════════════════════════════
+  //  SECCIÓN 1 — PRODUCTOS AGRUPADOS POR TIPO
+  // ══════════════════════════════════════════════
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); sc(C.acc);
+  doc.text('PRODUCTOS POR TIPO', M, y);
+  y += 6;
+
+  // Agrupar variantes de todos los pedidos por tipo de producto
   const porTipo = {};
   g.pedidos.forEach(p => {
-    (p.items||[]).forEach(it => {
+    (p.items || []).forEach(it => {
       const tipo = normalizarTipo(it.producto);
       if (!porTipo[tipo]) porTipo[tipo] = [];
-      porTipo[tipo].push({ ...it, pedidoNum: p.num, pedidoEstado: p.estado, pedidoEntrega: p.fechaEntrega });
+      (it.variantes || []).forEach(v => {
+        porTipo[tipo].push({
+          pedidoNum:    p.num,
+          pedidoEstado: p.estado,
+          entrega:      p.fechaEntrega,
+          producto:     it.producto,
+          talla:        v.talla   || '',
+          color:        v.color   || '',
+          desc:         v.desc    || '',
+          cantidad:     parseInt(v.cantidad) || 0,
+          precio:       parseFloat(v.precio) || 0,
+        });
+      });
     });
   });
 
-  const tipos = Object.entries(porTipo);
+  Object.entries(porTipo).forEach(([tipo, variantes]) => {
+    const cantTipo  = variantes.reduce((s, v) => s + v.cantidad, 0);
+    const montoTipo = variantes.reduce((s, v) => s + v.cantidad * v.precio, 0);
+    // Calcular altura estimada (encabezado + cabecera cols + filas + subtotal)
+    const altEst = 9 + 6.5 + variantes.length * 9 + 7 + 5;
+    checkPage(altEst, 'Productos por tipo');
 
-  tipos.forEach(([tipo, items]) => {
-    const cantTipo = items.reduce((s,i)=>s+i.cantidad,0);
-    const totalTipo = items.reduce((s,i)=>s+(i.cantidad*i.precio),0);
-
-    // Estimar altura de esta sección
-    const altSeccion = 14 + items.length * 8 + 6;
-    if (y + altSeccion > 275) {
-      doc.addPage();
-      // mini header en páginas adicionales
-      sf(C.dark); doc.rect(0,0,W,12,'F');
-      doc.setFont('helvetica','bold'); doc.setFontSize(7); sc(C.white);
-      doc.text(g.nombre.toUpperCase() + ' — continuacion', M, 8);
-      doc.text('Generado: '+new Date().toLocaleDateString('es-CO'), W-M, 8, {align:'right'});
-      y = 18;
-    }
-
-    // Encabezado del tipo
-    sf(C.dark); doc.roundedRect(M, y, W-M*2, 9, 2, 2, 'F');
-    doc.setFont('helvetica','bold'); doc.setFontSize(8.5); sc(C.white);
-    doc.text(tipo, M+4, y+6);
-    sc(C.acc);
-    doc.text(cantTipo + ' und. totales', W-M-4, y+6, { align:'right' });
-    if (totalTipo > 0) {
-      sc([180,160,130]);
-      doc.text('$'+fmt(totalTipo), W-M-40, y+6, { align:'right' });
+    // Encabezado tipo (oscuro)
+    sf(C.dark); doc.roundedRect(M, y, TW, 9, 2, 2, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9); sc(C.white);
+    doc.text(tipo, M + 4, y + 6.2);
+    sc(C.acc); doc.setFontSize(8);
+    doc.text(cantTipo + ' und.', W - M - 4, y + 6.2, { align: 'right' });
+    if (montoTipo > 0) {
+      sc([180, 160, 130]); doc.setFontSize(7);
+      doc.text('$' + fmt(montoTipo), W - M - 28, y + 6.2, { align: 'right' });
     }
     y += 9;
 
     // Cabecera columnas
-    sf(C.bg); doc.rect(M, y, W-M*2, 6.5, 'F');
-    doc.setFont('helvetica','bold'); doc.setFontSize(6); sc(C.mid);
-    doc.text('PED.', M+2, y+4.5);
-    doc.text('DESCRIPCION / DETALLE', M+16, y+4.5);
-    doc.text('CANT', M+138, y+4.5);
-    doc.text('P.UNIT', M+150, y+4.5);
-    doc.text('SUBTOTAL', W-M-2, y+4.5, { align:'right' });
+    sf([235, 228, 218]); doc.rect(M, y, TW, 6.5, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(6); sc(C.mid);
+    doc.text('PED.', M + 2, y + 4.5);
+    doc.text('TALLA', M + 18, y + 4.5);
+    doc.text('COLOR / DETALLE', M + 38, y + 4.5);
+    doc.text('CANT.', M + 124, y + 4.5);
+    doc.text('P.UNIT', M + 143, y + 4.5);
+    doc.text('SUBTOTAL', W - M - 2, y + 4.5, { align: 'right' });
     y += 6.5;
 
-    items.forEach((it, idx) => {
-      const rowH = 8;
-      if (idx % 2 === 0) { sf([250,247,242]); doc.rect(M, y, W-M*2, rowH, 'F'); }
-      sd(C.light); doc.setLineWidth(0.15); doc.line(M, y+rowH, M+W-M*2, y+rowH);
+    variantes.forEach((v, vi) => {
+      const hasDesc = v.desc && v.desc.trim().length > 0;
+      const rowH    = hasDesc ? 13 : 8;
+      checkPage(rowH + 2, 'Productos — ' + tipo);
 
-      doc.setFont('helvetica','bold'); doc.setFontSize(7); sc(C.acc);
-      doc.text('#'+String(it.pedidoNum).padStart(3,'0'), M+2, y+5.5);
+      if (vi % 2 === 0) { sf([250, 247, 242]); doc.rect(M, y, TW, rowH, 'F'); }
+      sd(C.light); doc.setLineWidth(0.15); doc.line(M, y + rowH, M + TW, y + rowH);
 
-      doc.setFont('helvetica','normal'); sc(C.dark);
-      const descStr = doc.splitTextToSize(it.descripcion || it.producto || '', 120)[0];
-      doc.text(descStr, M+16, y+5.5);
+      // Número de pedido
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(7); sc(C.acc);
+      doc.text('#' + String(v.pedidoNum).padStart(3, '0'), M + 2, y + 5.5);
 
-      const fe = it.pedidoEntrega ? new Date(it.pedidoEntrega+'T12:00').toLocaleDateString('es-CO',{day:'2-digit',month:'2-digit'}) : '';
-      if (fe) {
-        doc.setFontSize(5.5); sc(C.mid);
-        doc.text('Entrega: '+fe, M+16, y+8.5);
+      // Talla
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(8); sc(C.dark);
+      doc.text(v.talla || '-', M + 18, y + 5.5);
+
+      // Color
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); sc(C.mid);
+      const colorStr = doc.splitTextToSize(v.color || '-', 80)[0];
+      doc.text(colorStr, M + 38, y + 5.5);
+
+      // Detalle (segunda línea si existe)
+      if (hasDesc) {
+        doc.setFont('helvetica', 'italic'); doc.setFontSize(6.5); sc([160, 140, 120]);
+        const descStr = doc.splitTextToSize(v.desc, 80)[0];
+        doc.text(descStr, M + 38, y + 10);
       }
 
-      doc.setFont('helvetica','bold'); doc.setFontSize(8); sc(C.dark);
-      doc.text(String(it.cantidad), M+142, y+5.5, { align:'center' });
+      // Fecha entrega pequeña
+      if (v.entrega) {
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(5.5); sc(C.mid);
+        doc.text('Ent:' + fmtFecha(v.entrega, { day: '2-digit', month: '2-digit' }), M + 2, y + 9.5);
+      }
 
-      doc.setFont('helvetica','normal'); doc.setFontSize(6.5); sc(C.mid);
-      doc.text(it.precio>0?'$'+fmt(it.precio):'-', M+150, y+5.5);
+      // Cantidad
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); sc(C.dark);
+      doc.text(String(v.cantidad), M + 128, y + 5.5, { align: 'center' });
 
-      const sub = it.cantidad * it.precio;
-      sc(sub>0?C.acc:C.mid);
-      doc.setFont('helvetica','bold'); doc.setFontSize(7);
-      doc.text(sub>0?'$'+fmt(sub):'-', W-M-2, y+5.5, { align:'right' });
+      // Precio unit
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7); sc(C.mid);
+      doc.text(v.precio > 0 ? '$' + fmt(v.precio) : '-', M + 143, y + 5.5);
+
+      // Subtotal
+      const sub = v.cantidad * v.precio;
+      sc(sub > 0 ? C.acc : C.mid);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5);
+      doc.text(sub > 0 ? '$' + fmt(sub) : '-', W - M - 2, y + 5.5, { align: 'right' });
 
       y += rowH;
     });
 
     // Subtotal del tipo
-    sf([240,236,230]); doc.rect(M, y, W-M*2, 7, 'F');
-    doc.setFont('helvetica','bold'); doc.setFontSize(7); sc(C.mid);
-    doc.text('Subtotal ' + tipo + ': ' + cantTipo + ' prendas', M+4, y+4.8);
-    if (totalTipo > 0) { sc(C.acc); doc.text('$'+fmt(totalTipo), W-M-2, y+4.8, { align:'right' }); }
+    sf([240, 235, 228]); doc.rect(M, y, TW, 7, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7); sc(C.mid);
+    doc.text('Subtotal ' + tipo + ':  ' + cantTipo + ' unidades', M + 4, y + 4.8);
+    if (montoTipo > 0) { sc(C.acc); doc.text('$' + fmt(montoTipo), W - M - 2, y + 4.8, { align: 'right' }); }
     y += 7;
-    y += 5; // espacio entre secciones
+    y += 6;
   });
 
-  // ── RESUMEN GLOBAL ──
-  if (y + 40 > 277) { doc.addPage(); y = 16; }
-  y += 3;
-  sf(C.dark); doc.roundedRect(M, y, W-M*2, 36, 2, 2, 'F');
+  // ══════════════════════════════════════════════
+  //  SECCIÓN 2 — RESUMEN GLOBAL
+  // ══════════════════════════════════════════════
+  checkPage(44, 'Resumen global');
+  y += 2;
 
-  doc.setFont('helvetica','bold'); doc.setFontSize(7.5); sc([180,160,130]);
-  doc.text('RESUMEN GLOBAL DEL CLIENTE', M+4, y+8);
+  sf(C.dark); doc.roundedRect(M, y, TW, 38, 2, 2, 'F');
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(8); sc([180, 160, 130]);
+  doc.text('RESUMEN GLOBAL DEL CLIENTE', M + 4, y + 8);
 
-  const col1 = M+4, col2 = M+60, col3 = M+115;
-  doc.setFont('helvetica','normal'); doc.setFontSize(7); sc([180,160,130]);
-  doc.text('Total pedidos:', col1, y+17);
-  doc.text('Total prendas:', col2, y+17);
-  doc.text('Total facturado:', col3, y+17);
+  const c1 = M + 4, c2 = M + 55, c3 = M + 110;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7); sc([180, 160, 130]);
+  doc.text('Total pedidos:', c1, y + 17);
+  doc.text('Total prendas:', c2, y + 17);
+  doc.text('Facturado (activos):', c3, y + 17);
 
-  doc.setFont('helvetica','bold'); doc.setFontSize(10);
-  sc(C.white); doc.text(String(g.pedidos.length), col1, y+26);
-  sc(C.white); doc.text(String(totalPrend), col2, y+26);
-  sc(C.acc);   doc.text('$'+fmt(totalMonto), col3, y+26);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+  sc(C.white); doc.text(String(g.pedidos.length), c1, y + 27);
+  sc(C.white); doc.text(String(totalPrend), c2, y + 27);
+  sc(C.acc);   doc.text('$' + fmt(totalMonto), c3, y + 27);
 
-  doc.setFont('helvetica','normal'); doc.setFontSize(7); sc([180,160,130]);
-  doc.text('Saldo pendiente: $'+fmt(totalSaldo), W-M-4, y+26, { align:'right' });
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7); sc([200, 100, 100]);
+  doc.text('Saldo pendiente (activos): $' + fmt(totalSaldo), W - M - 4, y + 27, { align: 'right' });
 
-  y += 40;
+  y += 42;
 
-  // ── DETALLE POR PEDIDO (resumen compacto) ──
-  if (y + 20 > 277) { doc.addPage(); y = 16; }
-  doc.setFont('helvetica','bold'); doc.setFontSize(7.5); sc(C.acc);
-  doc.text('DETALLE POR PEDIDO', M, y+4);
-  y += 9;
+  // ══════════════════════════════════════════════
+  //  SECCIÓN 3 — DETALLE POR PEDIDO
+  // ══════════════════════════════════════════════
+  checkPage(26, 'Detalle por pedido');
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); sc(C.acc);
+  doc.text('DETALLE POR PEDIDO', M, y + 5);
+  y += 10;
 
-  sf(C.dark); doc.rect(M, y, W-M*2, 6.5, 'F');
-  doc.setFont('helvetica','bold'); doc.setFontSize(6); sc(C.white);
-  doc.text('N.', M+2, y+4.5);
-  doc.text('FECHA PED.', M+12, y+4.5);
-  doc.text('FECHA ENTREGA', M+40, y+4.5);
-  doc.text('ESTADO', M+80, y+4.5);
-  doc.text('PRENDAS', M+115, y+4.5);
-  doc.text('TOTAL', M+138, y+4.5);
-  doc.text('SALDO', W-M-2, y+4.5, { align:'right' });
-  y += 6.5;
+  // Cabecera tabla pedidos
+  sf(C.dark); doc.rect(M, y, TW, 7, 'F');
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(6); sc(C.white);
+  doc.text('N.',          M + 2,   y + 4.8);
+  doc.text('F. PEDIDO',   M + 12,  y + 4.8);
+  doc.text('F. ENTREGA',  M + 38,  y + 4.8);
+  doc.text('ESTADO',      M + 70,  y + 4.8);
+  doc.text('PRENDAS',     M + 110, y + 4.8);
+  doc.text('TOTAL',       M + 135, y + 4.8);
+  doc.text('SALDO',       W - M - 2, y + 4.8, { align: 'right' });
+  y += 7;
 
   g.pedidos.forEach((p, idx) => {
-    if (y + 8 > 280) { doc.addPage(); y = 16; }
-    const rowH = 7.5;
-    if (idx%2===0) { sf(C.bg); doc.rect(M,y,W-M*2,rowH,'F'); }
-    sd(C.light); doc.setLineWidth(0.15); doc.line(M,y+rowH,M+W-M*2,y+rowH);
+    checkPage(9, 'Detalle por pedido');
+    const rowH = 8;
+    if (idx % 2 === 0) { sf(C.bg); doc.rect(M, y, TW, rowH, 'F'); }
+    sd(C.light); doc.setLineWidth(0.15); doc.line(M, y + rowH, M + TW, y + rowH);
 
-    const fp2 = p.fechaPedido?fmtFecha(p.fechaPedido,{day:'2-digit',month:'2-digit'}):'-';
-    const fe2 = p.fechaEntrega?fmtFecha(p.fechaEntrega,{day:'2-digit',month:'2-digit'}):'-';
-    const prend2 = (p.items||[]).reduce((s,i)=>s+i.cantidad,0);
+    const fp2    = fmtFecha(p.fechaPedido,  { day: '2-digit', month: '2-digit' });
+    const fe2    = fmtFecha(p.fechaEntrega, { day: '2-digit', month: '2-digit' });
+    const prend2 = (p.items || []).reduce((s, i) =>
+      s + (i.variantes || []).reduce((a, v) => a + (parseInt(v.cantidad) || 0), 0), 0);
 
-    doc.setFont('helvetica','bold'); doc.setFontSize(7); sc(C.acc);
-    doc.text('#'+String(p.num).padStart(3,'0'), M+2, y+5.2);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); sc(C.acc);
+    doc.text('#' + String(p.num).padStart(3, '0'), M + 2, y + 5.5);
 
-    doc.setFont('helvetica','normal'); sc(C.dark);
-    doc.text(fp2, M+12, y+5.2);
-    doc.text(fe2, M+40, y+5.2);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7); sc(C.dark);
+    doc.text(fp2, M + 12, y + 5.5);
+    doc.text(fe2, M + 38, y + 5.5);
 
-    const ecMap2 = {'En produccion':'En prod.','Pendiente':'Pendiente','Entregado':'Entregado','Cancelado':'Cancelado'};
-    const ecC = {'En produccion':[230,81,0],'Pendiente':[21,101,192],'Entregado':[46,125,50],'Cancelado':[198,40,40]};
-    const ec2 = ecC[p.estado]||C.mid;
-    doc.setTextColor(ec2[0],ec2[1],ec2[2]);
-    doc.text(ecMap2[p.estado]||p.estado, M+80, y+5.2);
+    const ecMap = { 'En produccion': 'En prod.', 'Pendiente': 'Pendiente', 'Entregado': 'Entregado', 'Cancelado': 'Cancelado' };
+    const ecC   = { 'En produccion': [230,81,0], 'Pendiente': [21,101,192], 'Entregado': [46,125,50], 'Cancelado': [198,40,40] };
+    const ec    = ecC[p.estado] || C.mid;
+    doc.setTextColor(ec[0], ec[1], ec[2]);
+    doc.text(ecMap[p.estado] || p.estado, M + 70, y + 5.5);
 
-    sc(C.dark);
-    doc.text(String(prend2), M+119, y+5.2, { align:'center' });
-    sc(p.total>0?C.acc:C.mid);
-    doc.text(p.total>0?'$'+fmt(p.total):'-', M+138, y+5.2);
-    sc(p.saldo>0?[192,57,43]:C.mid);
-    doc.text(p.saldo>0?'$'+fmt(p.saldo):'-', W-M-2, y+5.2, { align:'right' });
+    sc(C.dark); doc.setFont('helvetica', 'bold');
+    doc.text(String(prend2), M + 115, y + 5.5, { align: 'center' });
+
+    // Cancelados: mostrar raya en lugar de monto
+    if (p.estado === 'Cancelado') {
+      sc(C.mid);
+      doc.text('-', M + 135, y + 5.5);
+      doc.text('-', W - M - 2, y + 5.5, { align: 'right' });
+    } else {
+      sc(p.total > 0 ? C.acc : C.mid);
+      doc.text(p.total > 0 ? '$' + fmt(p.total) : '-', M + 135, y + 5.5);
+      sc(p.saldo > 0 ? [192, 57, 43] : C.mid);
+      doc.text(p.saldo > 0 ? '$' + fmt(p.saldo) : '-', W - M - 2, y + 5.5, { align: 'right' });
+    }
 
     y += rowH;
   });
 
-  // ── PIE ──
-  sf(C.dark); doc.rect(0,287,W,10,'F');
-  doc.setFont('helvetica','normal'); doc.setFontSize(6.5); sc([100,85,70]);
-  doc.text('Consolidado: '+g.nombre+' | '+g.pedidos.length+' pedidos | '+new Date().toLocaleDateString('es-CO'), W/2, 293, { align:'center' });
+  // Pie en todas las páginas
+  dibujarPiesConsolidado();
 
-  doc.save('Consolidado-'+g.nombre.split(' ')[0]+'-'+new Date().toISOString().slice(0,10)+'.pdf');
+  doc.save('Consolidado-' + g.nombre.replace(/\s+/g, '-').slice(0,20) + '-' + new Date().toISOString().slice(0,10) + '.pdf');
   showToast('PDF consolidado generado para ' + g.nombre);
 }
+
 
 // ─── RECARGAR DESDE DRIVE ───
 async function recargarDesdeDrive() {
@@ -2722,8 +2826,8 @@ async function recargarDesdeDrive() {
 
 // ─── CREDENCIALES (cámbialas aquí) ───
 const USUARIOS = [
-  { user: 'admin',    pass: 'textil2026', nombre: 'Administrador' },
-  { user: 'user',  pass: 'costura123', nombre: 'Usuario'     },
+  { user: 'admin',    pass: 'textil2024', nombre: 'Administrador' },
+  { user: 'costura',  pass: 'costura123', nombre: 'Costurera'     },
 ];
 const SESSION_KEY = 'textilpro_session';
 
