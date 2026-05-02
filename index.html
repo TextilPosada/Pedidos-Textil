@@ -865,68 +865,7 @@ tr:hover td { background: var(--lighter); }
 </style>
 
 <style>
-/* ═══ LOGIN ═══ */
-#loginScreen {
-  position: fixed; inset: 0; background: var(--dark);
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  z-index: 9999; padding: 32px 24px;
-}
-.login-logo {
-  font-family: 'Libre Baskerville', serif;
-  font-size: 2rem; color: #fff; margin-bottom: 4px;
-}
-.login-logo span { color: var(--accent); }
-.login-sub {
-  font-size: 0.75rem; color: rgba(255,255,255,0.4);
-  letter-spacing: 0.1em; text-transform: uppercase;
-  margin-bottom: 40px;
-}
-.login-card {
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 18px; padding: 28px 24px;
-  width: 100%; max-width: 360px;
-}
-.login-field { margin-bottom: 16px; }
-.login-field label {
-  display: block; font-size: 0.7rem; font-weight: 600;
-  color: rgba(255,255,255,0.5); letter-spacing: 0.07em;
-  text-transform: uppercase; margin-bottom: 6px;
-}
-.login-field input {
-  width: 100%; padding: 13px 14px;
-  background: rgba(255,255,255,0.08);
-  border: 1.5px solid rgba(255,255,255,0.12);
-  border-radius: 10px; color: #fff;
-  font-family: 'Sora', sans-serif; font-size: 0.95rem;
-}
-.login-field input:focus {
-  outline: none; border-color: var(--accent);
-  background: rgba(255,255,255,0.12);
-}
-.login-field input::placeholder { color: rgba(255,255,255,0.25); }
-.login-btn {
-  width: 100%; padding: 14px;
-  background: var(--accent); color: #fff; border: none;
-  border-radius: 10px; font-family: 'Sora', sans-serif;
-  font-size: 0.95rem; font-weight: 700; cursor: pointer;
-  transition: all 0.15s; margin-top: 4px;
-}
-.login-btn:active { background: var(--accent2); transform: scale(0.98); }
-.login-error {
-  color: #FF6B6B; font-size: 0.78rem; text-align: center;
-  margin-top: 12px; display: none;
-}
-.login-remember {
-  display: flex; align-items: center; gap: 8px;
-  margin-bottom: 16px; cursor: pointer;
-}
-.login-remember input { width: auto; padding: 0; }
-.login-remember span {
-  font-size: 0.78rem; color: rgba(255,255,255,0.5);
-}
-#appContent { display: none; }
+
 
 /* ─── VARIANTE ROWS ─── */
 .variante-row {
@@ -989,25 +928,6 @@ tr:hover td { background: var(--lighter); }
 }
 </style>
 <body>
-
-<!-- ═══ LOGIN ═══ -->
-<div id="loginScreen">
-  <div class="login-logo">🧵 Textil<span>Pro</span></div>
-  <div class="login-sub">Sistema de pedidos</div>
-  <div class="login-card">
-    <div class="login-field">
-      <label>Usuario</label>
-      <input type="text" id="loginUser" placeholder="usuario" autocomplete="username" autocorrect="off" autocapitalize="none">
-    </div>
-    <div class="login-field">
-      <label>Contraseña</label>
-      <input type="password" id="loginPass" placeholder="••••••••" autocomplete="current-password"
-        onkeydown="if(event.key==='Enter') hacerLogin()">
-    </div>
-    <button class="login-btn" onclick="hacerLogin()">Ingresar</button>
-    <div class="login-error" id="loginError">Usuario o contrasena incorrectos</div>
-  </div>
-</div>
 
 <!-- ═══ APP ═══ -->
 <div id="appContent">
@@ -1360,13 +1280,12 @@ let filtroActivo = 'todos';
 let pedidoModal = null; // pedido abierto en modal
 
 // ─── INIT ───
-window.onload = async () => {
-  const sesion = verificarSesion();
-  if (sesion) {
-    mostrarApp(sesion.nombre);
-  }
-  // Si no hay sesión, loginScreen ya está visible por defecto
-};
+// Usar DOMContentLoaded para que el DOM esté listo antes de manipularlo
+document.addEventListener('DOMContentLoaded', function() {
+  var ac = document.getElementById('appContent');
+  if (ac) ac.style.display = 'block';
+  iniciarApp();
+});
 
 // ─── TABS ───
 function switchView(id, btn) {
@@ -2172,86 +2091,85 @@ function filtrarTabla(q) {
 
 // ─── TABLA ───
 function renderTabla(lista) {
-  const tbody    = document.getElementById('tablaTbody');
-  const tarjetas = document.getElementById('tablaTarjetas');
-  const badgeMap = {
-    'En produccion':'<span class="badge badge-prod">En prod.</span>',
-    'Pendiente':    '<span class="badge badge-pend">Pendiente</span>',
-    'Entregado':    '<span class="badge badge-ent">Entregado</span>',
-    'Cancelado':    '<span class="badge badge-can">Cancelado</span>',
-  };
-  if (!lista.length) {
-    const empty = '<div class="empty"><div class="empty-ico">📭</div><p>Sin pedidos en esta vista</p></div>';
-    tbody.innerHTML = '<tr><td colspan="8">' + empty + '</td></tr>';
-    if (tarjetas) tarjetas.innerHTML = empty;
-    return;
-  }
-  const prendas = p => (p.items||[]).reduce((s,i)=>s+(i.variantes||[]).reduce((a,v)=>a+(parseInt(v.cantidad)||0),0),0);
-
-  // DESKTOP tabla
-  tbody.innerHTML = lista.map(p => {
-    const fp = fmtFecha(p.fechaPedido,  {day:'2-digit',month:'2-digit'});
-    const fe = fmtFecha(p.fechaEntrega, {day:'2-digit',month:'2-digit'});
-    return '<tr style="cursor:pointer" onclick="abrirModal(\'' + p.id + '\')">' +
-      '<td><strong>#' + String(p.num).padStart(3,'0') + '</strong>' + (p.urgente?' <span class="badge badge-urg">URG</span>':'') + '</td>' +
-      '<td style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + p.cliente + '</td>' +
-      '<td>' + fp + '</td><td>' + fe + '</td>' +
-      '<td>' + (badgeMap[p.estado]||p.estado) + '</td>' +
-      '<td>' + prendas(p) + '</td>' +
-      '<td>' + (p.total>0?'$'+fmt(p.total):'-') + '</td>' +
-      '<td onclick="event.stopPropagation()">' +
-        '<button class="btn-tbl" onclick="reimprimirPDF(\'' + p.id + '\')">PDF</button>' +
-      '</td></tr>';
-  }).join('');
-
-  // MÓVIL tarjetas
-  if (tarjetas) tarjetas.innerHTML = lista.map(p => {
-    const fp = fmtFecha(p.fechaPedido,  {day:'2-digit',month:'2-digit',year:'numeric'});
-    const fe = fmtFecha(p.fechaEntrega, {day:'2-digit',month:'2-digit',year:'numeric'});
-    return '<div class="pedido-card-mobile" onclick="abrirModal(\'' + p.id + '\')">' +
-      '<div class="pcm-top">' +
-        '<span class="pcm-num">#' + String(p.num).padStart(3,'0') + (p.urgente?' 🔴':'') + '</span>' +
-        '<span class="pcm-total">' + (p.total>0?'$'+fmt(p.total):'-') + '</span>' +
-      '</div>' +
-      '<div class="pcm-cliente">' + p.cliente + '</div>' +
-      '<div class="pcm-meta">' +
-        (badgeMap[p.estado]||p.estado) +
-        '<span>Ped: ' + fp + '</span>' +
-        '<span>Ent: ' + fe + '</span>' +
-        '<span>' + prendas(p) + ' prendas</span>' +
-      '</div>' +
-      '<div class="pcm-actions" onclick="event.stopPropagation()">' +
-        '<button class="pcm-btn" onclick="abrirModal(\'' + p.id + '\')">Ver detalle</button>' +
-        '<button class="pcm-btn primary" onclick="reimprimirPDF(\'' + p.id + '\')">Descargar PDF</button>' +
-      '</div>' +
-    '</div>';
-  }).join('');
-}
-  const badgeMap = {
+  var tbody    = document.getElementById('tablaTbody');
+  var tarjetas = document.getElementById('tablaTarjetas');
+  var badgeMap = {
     'En produccion': '<span class="badge badge-prod">En prod.</span>',
     'Pendiente':     '<span class="badge badge-pend">Pendiente</span>',
     'Entregado':     '<span class="badge badge-ent">Entregado</span>',
     'Cancelado':     '<span class="badge badge-can">Cancelado</span>',
   };
-  tbody.innerHTML = lista.map(p => {
-    const fp = p.fechaPedido ? fmtFecha(p.fechaPedido,{day:'2-digit',month:'2-digit'}) : '-';
-    const fe = p.fechaEntrega ? fmtFecha(p.fechaEntrega,{day:'2-digit',month:'2-digit'}) : '-';
-    const totalPrendas = p.items ? p.items.reduce((s,i)=>s+(i.variantes||[]).reduce((a,v)=>a+v.cantidad,0),0) : 0;
-    return `<tr style="cursor:pointer" onclick="abrirModal('${p.id}')">
-      <td><strong>#${String(p.num).padStart(3,'0')}</strong>${p.urgente ? ' <span class="badge badge-urg">URG</span>' : ''}</td>
-      <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.cliente}</td>
-      <td>${fp}</td>
-      <td>${fe}</td>
-      <td>${badgeMap[p.estado] || p.estado}</td>
-      <td>${totalPrendas}</td>
-      <td>${p.total > 0 ? '$'+fmt(p.total) : '-'}</td>
-      <td onclick="event.stopPropagation()">
-        <button class="btn-tbl" onclick="reimprimirPDF('${p.id}')">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align:middle;margin-right:3px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>PDF
-        </button>
-      </td>
-    </tr>`;
+  if (!lista.length) {
+    var e = '<div class="empty"><div class="empty-ico">Sin datos</div><p>Sin pedidos en esta vista</p></div>';
+    tbody.innerHTML = '<tr><td colspan="8">' + e + '</td></tr>';
+    if (tarjetas) tarjetas.innerHTML = e;
+    return;
+  }
+  function getPrendas(p) {
+    return (p.items||[]).reduce(function(s,i) {
+      return s + (i.variantes||[]).reduce(function(a,v) { return a + (parseInt(v.cantidad)||0); }, 0);
+    }, 0);
+  }
+
+  // DESKTOP tabla
+  tbody.innerHTML = lista.map(function(p) {
+    var fp    = fmtFecha(p.fechaPedido,  {day:'2-digit',month:'2-digit'});
+    var fe    = fmtFecha(p.fechaEntrega, {day:'2-digit',month:'2-digit'});
+    var urg   = p.urgente ? ' <span class="badge badge-urg">URG</span>' : '';
+    var tot   = p.total > 0 ? '$' + fmt(p.total) : '-';
+    var badge = badgeMap[p.estado] || p.estado;
+    return '<tr class="pedido-row" data-id="' + p.id + '" style="cursor:pointer">' +
+      '<td><strong>#' + String(p.num).padStart(3,'0') + '</strong>' + urg + '</td>' +
+      '<td style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + p.cliente + '</td>' +
+      '<td>' + fp + '</td><td>' + fe + '</td>' +
+      '<td>' + badge + '</td>' +
+      '<td>' + getPrendas(p) + '</td>' +
+      '<td>' + tot + '</td>' +
+      '<td><button class="btn-tbl btn-pdf-row" data-id="' + p.id + '">PDF</button></td>' +
+      '</tr>';
   }).join('');
+
+  // MOVIL tarjetas
+  if (tarjetas) {
+    tarjetas.innerHTML = lista.map(function(p) {
+      var fp    = fmtFecha(p.fechaPedido,  {day:'2-digit',month:'2-digit',year:'numeric'});
+      var fe    = fmtFecha(p.fechaEntrega, {day:'2-digit',month:'2-digit',year:'numeric'});
+      var urg   = p.urgente ? ' Urgente' : '';
+      var tot   = p.total > 0 ? '$' + fmt(p.total) : '-';
+      var badge = badgeMap[p.estado] || p.estado;
+      return '<div class="pedido-card-mobile pedido-row" data-id="' + p.id + '">' +
+        '<div class="pcm-top">' +
+          '<span class="pcm-num">#' + String(p.num).padStart(3,'0') + urg + '</span>' +
+          '<span class="pcm-total">' + tot + '</span>' +
+        '</div>' +
+        '<div class="pcm-cliente">' + p.cliente + '</div>' +
+        '<div class="pcm-meta">' + badge +
+          '<span>Ped: ' + fp + '</span>' +
+          '<span>Ent: ' + fe + '</span>' +
+          '<span>' + getPrendas(p) + ' prendas</span>' +
+        '</div>' +
+        '<div class="pcm-actions">' +
+          '<button class="pcm-btn btn-ver-row" data-id="' + p.id + '">Ver detalle</button>' +
+          '<button class="pcm-btn primary btn-pdf-row" data-id="' + p.id + '">Descargar PDF</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  // Delegacion de eventos — sin onclick inline
+  function delegarClicks(container) {
+    if (!container) return;
+    container.onclick = function(e) {
+      var pdfBtn = e.target.closest('.btn-pdf-row');
+      var verBtn = e.target.closest('.btn-ver-row');
+      var row    = e.target.closest('.pedido-row');
+      if (pdfBtn) { e.stopPropagation(); reimprimirPDF(pdfBtn.dataset.id); return; }
+      if (verBtn) { e.stopPropagation(); abrirModal(verBtn.dataset.id); return; }
+      if (row && !e.target.closest('button')) { abrirModal(row.dataset.id); }
+    };
+  }
+  delegarClicks(tbody);
+  delegarClicks(tarjetas);
 }
 
 // ─── MODAL DETALLE ───
@@ -2907,60 +2825,7 @@ async function recargarDesdeDrive() {
   showToast('Datos actualizados desde Drive', '#3A7D44');
 }
 
-// ─── CREDENCIALES (cámbialas aquí) ───
-const USUARIOS = [
-  { user: 'admin',    pass: 'textil2026', nombre: 'Administrador' },
-  { user: 'user',  pass: 'costura123', nombre: 'usuario'     },
-];
-const SESSION_KEY = 'textilpro_session';
 
-function hacerLogin() {
-  const user = document.getElementById('loginUser').value.trim().toLowerCase();
-  const pass = document.getElementById('loginPass').value;
-  const encontrado = USUARIOS.find(u => u.user === user && u.pass === pass);
-  if (!encontrado) {
-    const err = document.getElementById('loginError');
-    err.style.display = 'block';
-    document.getElementById('loginPass').value = '';
-    setTimeout(() => err.style.display = 'none', 3000);
-    return;
-  }
-  // Siempre localStorage — persiste aunque se cierre el navegador
-  localStorage.setItem(SESSION_KEY, JSON.stringify({
-    user, nombre: encontrado.nombre, ts: Date.now()
-  }));
-  mostrarApp(encontrado.nombre);
-}
-
-function verificarSesion() {
-  try {
-    const data = localStorage.getItem(SESSION_KEY);
-    if (!data) return false;
-    const s = JSON.parse(data);
-    // Sin expiración — dura hasta que presionen "Salir"
-    return s;
-  } catch(_) { return false; }
-}
-
-function mostrarApp(nombre) {
-  document.getElementById('loginScreen').style.display = 'none';
-  document.getElementById('appContent').style.display = 'block';
-  const syncEl = document.getElementById('syncStatus');
-  if (syncEl && nombre) {
-    const salir = document.createElement('button');
-    salir.textContent = 'Salir';
-    salir.style.cssText = 'background:none;border:1px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.6);border-radius:6px;padding:3px 8px;font-size:0.65rem;font-weight:600;cursor:pointer;font-family:Sora,sans-serif;margin-left:6px;';
-    salir.onclick = cerrarSesion;
-    syncEl.parentNode.insertBefore(salir, syncEl.nextSibling);
-  }
-  iniciarApp();
-}
-
-function cerrarSesion() {
-  if (!confirm('Cerrar sesion en este dispositivo?')) return;
-  localStorage.removeItem(SESSION_KEY);
-  location.reload();
-}
 
 // ─── EXPORTAR EXCEL CON GRÁFICAS ───
 async function exportarExcel() {
