@@ -1567,13 +1567,19 @@ function rowsToPedidos(rows, itemRows) {
           variantes: []
         };
       }
+      // Columnas Items: 0=ID,1=NPed,2=Cliente,3=ItemN,4=Producto,5=Talla,6=Color,7=Detalle,8=Cantidad,9=Precio,10=Subtotal
+      var iTalla = ii('Talla');    var colTalla = iTalla >= 0 ? iTalla : 5;
+      var iColor = ii('Color');    var colColor = iColor >= 0 ? iColor : 6;
+      var iDesc  = ii('Detalle');  var colDesc  = iDesc  >= 0 ? iDesc  : 7;
+      var iCant  = ii('Cantidad'); var colCant  = iCant  >= 0 ? iCant  : 8;
+      var iPrec  = ii('Precio Unit'); var colPrec = iPrec >= 0 ? iPrec : 9;
       itemsTemp[key].variantes.push({
-        vid: Date.now() + Math.random(),
-        talla:    r[ii('Talla')]       || r[5] || '',
-        color:    r[ii('Color')]       || r[6] || '',
-        desc:     r[ii('Detalle')]     || r[7] || '',
-        cantidad: parseInt(r[ii('Cantidad')]    || r[8]) || 1,
-        precio:   parseFloat(r[ii('Precio Unit')] || r[9]) || 0,
+        vid:      Date.now() + Math.random(),
+        talla:    String(r[colTalla] || ''),
+        color:    String(r[colColor] || ''),
+        desc:     String(r[colDesc]  || ''),
+        cantidad: parseInt(r[colCant])  || 1,
+        precio:   parseFloat(r[colPrec]) || 0,
       });
     });
     Object.values(itemsTemp).forEach(it => {
@@ -1614,22 +1620,23 @@ async function cargarDatos() {
 async function sheetRequest(body) {
   setSyncStatus('syncing');
   try {
-    await fetch(SHEET_URL, {
+    const res = await fetch(SHEET_URL, {
       method: 'POST',
       body: JSON.stringify(body),
     });
-    // Actualizar copia local
+    const data = await res.json().catch(function() { return {}; });
     try { localStorage.setItem(STORE_KEY, JSON.stringify(pedidos)); } catch(_) {}
     setSyncStatus('ok');
+    return data; // devuelve numAsignado, ok, etc.
   } catch(e) {
-    // Guardar localmente y marcar pendiente de sync
     try { localStorage.setItem(STORE_KEY, JSON.stringify(pedidos)); } catch(_) {}
     setSyncStatus('offline');
+    return null;
   }
 }
 
 async function guardarDatos(pedido) {
-  await sheetRequest({ action: 'guardar', pedido });
+  return await sheetRequest({ action: 'guardar', pedido });
 }
 
 async function eliminarEnSheet(id) {
@@ -1689,10 +1696,17 @@ async function guardarYPDF() {
   pedidos.push(pedido);
   pedidos.sort((a, b) => b.num - a.num);
 
-  await guardarDatos(pedido);
-  generarPDF(pedido);
-  showToast('Pedido #' + String(numP).padStart(3,'0') + ' guardado');
-  setTimeout(() => limpiarForm(), 600);
+  // Guardar en Sheets y obtener el consecutivo final asignado por el servidor
+  const res = await guardarDatos(pedido);
+  if (res && res.numAsignado && res.numAsignado !== pedido.num) {
+    // Actualizar número en el objeto local con el asignado por el servidor
+    pedido.num = res.numAsignado;
+    const localIdx = pedidos.findIndex(function(x) { return String(x.id) === String(pedido.id); });
+    if (localIdx >= 0) pedidos[localIdx].num = res.numAsignado;
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(pedidos)); } catch(_) {}
+  }
+  showToast('Pedido #' + String(pedido.num).padStart(3,'0') + ' guardado');
+  setTimeout(function() { limpiarForm(); }, 600);
 }
 
 function limpiarForm() {
@@ -2270,7 +2284,11 @@ function abrirModal(id) {
     </div>` : '';
 
   // Boton PDF
-  document.getElementById('modalPdfBtn').onclick = () => { generarPDF(p); showToast('PDF generado'); };
+  document.getElementById('modalPdfBtn').onclick = function() {
+    var fresh = pedidos.find(function(x) { return String(x.id) === String(p.id); }) || p;
+    try { generarPDF(fresh); showToast('PDF generado'); }
+    catch(err) { showToast('Error PDF: ' + err.message, '#C0392B'); console.error(err); }
+  };
 
   // Resetear zona de peligro
   document.getElementById('zonaPeligro').style.display = 'none';
@@ -2307,10 +2325,21 @@ async function cambiarEstado(btn) {
 }
 
 // ─── REIMPRIMIR / ELIMINAR ───
-function reimprimirPDF(id) {
-  const p = pedidos.find(x => String(x.id) === String(id));
-  if (p) { generarPDF(p); showToast('PDF generado'); }
-  else showToast('Pedido no encontrado', '#D4A017');
+async function reimprimirPDF(id) {
+  var sid = String(id);
+  var p = pedidos.find(function(x) { return String(x.id) === sid; });
+  if (!p) {
+    // Intentar recargar desde Sheets antes de fallar
+    showToast('Buscando pedido...', '#D4A017');
+    await cargarDatos();
+    p = pedidos.find(function(x) { return String(x.id) === sid; });
+  }
+  if (p) {
+    try { generarPDF(p); showToast('PDF generado'); }
+    catch(err) { showToast('Error al generar PDF: ' + err.message, '#C0392B'); console.error(err); }
+  } else {
+    showToast('Pedido no encontrado', '#C0392B');
+  }
 }
 
 function toggleZonaPeligro() {
