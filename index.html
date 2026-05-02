@@ -1602,7 +1602,7 @@ async function cargarDatos() {
       const todos = rowsToPedidos(data.rows, data.items);
       // Filtrar los pedidos que el usuario ocultó desde el dashboard
       const ocultos = JSON.parse(localStorage.getItem('pedidos_ocultos') || '[]').map(String);
-      pedidos = todos.filter(p => !ocultos.includes(String(p.id)));
+      pedidos = todos.filter(function(p) { return !ocultos.includes(String(p.id)); });
       try { localStorage.setItem(STORE_KEY, JSON.stringify(pedidos)); } catch(_) {}
       setSyncStatus('ok');
       return;
@@ -1730,6 +1730,16 @@ function limpiarForm() {
 
 // ─── PDF LIMPIO SIN CARACTERES RAROS ───
 function generarPDF(p) {
+  if (!p || !p.cliente) { showToast('Datos del pedido incompletos', '#D4A017'); return; }
+  if (!window.jspdf || !window.jspdf.jsPDF) {
+    showToast('Cargando generador PDF...', '#D4A017');
+    var s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+    s.onload = function() { generarPDF(p); };
+    s.onerror = function() { showToast('Error al cargar jsPDF', '#C0392B'); };
+    document.head.appendChild(s);
+    return;
+  }
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const W = 210, M = 14;
@@ -2380,7 +2390,7 @@ async function confirmarEliminar() {
     localStorage.setItem('pedidos_ocultos', JSON.stringify(ocultos));
   } catch(_) {}
   // En Sheets: marcar como Cancelado + fila en rojo (no borrar)
-  await sheetRequest({ action: 'cancelar', id });
+  await sheetRequest({ action: 'cancelar', id: String(id) });
   renderDash();
   showToast('Pedido #' + String(num).padStart(3,'0') + ' ocultado del dashboard', '#C0392B');
 }
@@ -2392,7 +2402,7 @@ async function eliminarPedido(id) {
     if (!ocultos.includes(String(id))) ocultos.push(String(id));
     localStorage.setItem('pedidos_ocultos', JSON.stringify(ocultos));
   } catch(_) {}
-  await sheetRequest({ action: 'cancelar', id });
+  await sheetRequest({ action: 'cancelar', id: String(id) });
   renderDash();
 }
 
@@ -2533,7 +2543,15 @@ function renderClientesAgrupados() {
 function pdfConsolidado(clienteId) {
   const g = window._gruposCliente?.[clienteId];
   if (!g) { showToast('No hay datos del cliente', '#D4A017'); return; }
-
+  if (!window.jspdf || !window.jspdf.jsPDF) {
+    showToast('Cargando generador PDF...', '#D4A017');
+    var s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+    s.onload = function() { pdfConsolidado(clienteId); };
+    s.onerror = function() { showToast('Error al cargar jsPDF', '#C0392B'); };
+    document.head.appendChild(s);
+    return;
+  }
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const W = 210, M = 14, TW = W - M * 2;
