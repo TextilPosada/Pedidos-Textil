@@ -1310,71 +1310,85 @@ function toggleUrgente() {
 }
 
 // ─── ITEMS ───
-function agregarItem() {
-  const id = Date.now();
-  items.push({ id, variantes: [{ vid: Date.now() + 1 }] });
-  salvarValoresItems();
-  renderItems();
-  restaurarValoresItems();
-}
-function eliminarItem(id) {
-  salvarValoresItems();
-  items = items.filter(i => i.id !== id);
-  renderItems();
-  restaurarValoresItems();
-  calcTotal();
-}
-function agregarVariante(itemId) {
-  salvarValoresItems();
-  const it = items.find(i => i.id === itemId);
-  if (it) it.variantes.push({ vid: Date.now() });
-  renderItems();
-  restaurarValoresItems();
-  calcTotal();
-}
-function eliminarVariante(itemId, vid) {
-  salvarValoresItems();
-  const it = items.find(i => i.id === itemId);
-  if (it && it.variantes.length > 1) it.variantes = it.variantes.filter(v => v.vid !== vid);
-  renderItems();
-  restaurarValoresItems();
-  calcTotal();
-}
+// Contador simple para IDs — nunca hay confusión de tipos
+var _itemCounter = 0;
+var _varCounter  = 0;
+function nuevoItemId()  { return 'it' + (++_itemCounter); }
+function nuevoVarId()   { return 'v'  + (++_varCounter);  }
+
+// Leer todos los valores del DOM al objeto items[] antes de re-renderizar
 function salvarValoresItems() {
-  items.forEach(it => {
-    const prodEl = document.getElementById('prod-' + it.id);
+  items.forEach(function(it) {
+    var prodEl = document.getElementById('prod-' + it.id);
     if (prodEl) it._prod = prodEl.value;
-    it.variantes.forEach(v => {
-      const t = document.getElementById('talla-' + v.vid);
-      const c = document.getElementById('color-' + v.vid);
-      const q = document.getElementById('cant-'  + v.vid);
-      const p = document.getElementById('prec-'  + v.vid);
-      const d = document.getElementById('desc-' + v.vid);
-      if (t) v._talla = t.value;
-      if (c) v._color = c.value;
-      if (q) v._cant  = q.value;
-      if (p) v._prec  = p.value;
-      if (d) v._desc  = d.value;
+    it.variantes.forEach(function(v) {
+      var t = document.getElementById('talla-' + v.vid);
+      var co = document.getElementById('color-' + v.vid);
+      var q = document.getElementById('cant-'  + v.vid);
+      var p = document.getElementById('prec-'  + v.vid);
+      var d = document.getElementById('desc-'  + v.vid);
+      if (t)  v._talla = t.value;
+      if (co) v._color = co.value;
+      if (q)  v._cant  = q.value;
+      if (p)  v._prec  = p.value;
+      if (d)  v._desc  = d.value;
     });
   });
 }
+
+// Escribir valores guardados de vuelta al DOM después de re-renderizar
 function restaurarValoresItems() {
-  items.forEach(it => {
-    const prodEl = document.getElementById('prod-' + it.id);
+  items.forEach(function(it) {
+    var prodEl = document.getElementById('prod-' + it.id);
     if (prodEl && it._prod !== undefined) prodEl.value = it._prod;
-    it.variantes.forEach(v => {
-      const t = document.getElementById('talla-' + v.vid);
-      const c = document.getElementById('color-' + v.vid);
-      const q = document.getElementById('cant-'  + v.vid);
-      const p = document.getElementById('prec-'  + v.vid);
-      const d2 = document.getElementById('desc-' + v.vid);
+    it.variantes.forEach(function(v) {
+      var t  = document.getElementById('talla-' + v.vid);
+      var co = document.getElementById('color-' + v.vid);
+      var q  = document.getElementById('cant-'  + v.vid);
+      var p  = document.getElementById('prec-'  + v.vid);
+      var d  = document.getElementById('desc-'  + v.vid);
       if (t  && v._talla !== undefined) t.value  = v._talla;
-      if (c  && v._color !== undefined) c.value  = v._color;
+      if (co && v._color !== undefined) co.value = v._color;
       if (q  && v._cant  !== undefined) q.value  = v._cant;
       if (p  && v._prec  !== undefined) p.value  = v._prec;
-      if (d2 && v._desc  !== undefined) d2.value = v._desc;
+      if (d  && v._desc  !== undefined) d.value  = v._desc;
     });
   });
+  calcTotal();
+}
+
+function agregarItem() {
+  salvarValoresItems();
+  items.push({ id: nuevoItemId(), variantes: [{ vid: nuevoVarId() }] });
+  renderItems();
+  restaurarValoresItems();
+}
+
+function eliminarItem(id) {
+  salvarValoresItems();
+  items = items.filter(function(i) { return i.id !== id; });
+  renderItems();
+  restaurarValoresItems();
+  calcTotal();
+}
+
+function agregarVariante(itemId) {
+  salvarValoresItems();
+  var it = items.find(function(i) { return i.id === itemId; });
+  if (it) it.variantes.push({ vid: nuevoVarId() });
+  renderItems();
+  restaurarValoresItems();
+  calcTotal();
+}
+
+function eliminarVariante(itemId, vid) {
+  salvarValoresItems();
+  var it = items.find(function(i) { return i.id === itemId; });
+  if (it && it.variantes.length > 1) {
+    it.variantes = it.variantes.filter(function(v) { return v.vid !== vid; });
+  }
+  renderItems();
+  restaurarValoresItems();
   calcTotal();
 }
 function renderItems() {
@@ -1718,6 +1732,8 @@ function limpiarForm() {
   document.querySelectorAll('.status-chip').forEach((c,i) => c.classList.toggle('active', i===0));
   document.getElementById('estadoVal').value = 'En produccion';
   items = [];
+  _itemCounter = 0;
+  _varCounter  = 0;
   agregarItem();
   calcTotal();
   actualizarNumPedido();
