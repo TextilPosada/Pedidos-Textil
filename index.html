@@ -1857,8 +1857,18 @@ function generarPDF(p) {
     const variantes = it.variantes || [];
     const totalProd = variantes.reduce((s,v)=>s+(v.cantidad*(v.precio||0)),0);
     const totalUnd  = variantes.reduce((s,v)=>s+v.cantidad,0);
-    const needed = 9 + 6.5 + variantes.length * 8 + 5;
-    checkPage(needed);
+
+    // Calcular altura real de cada variante (8 normal, 14 con detalle)
+    const altVariantes = variantes.reduce((s,v)=>{
+      return s + ((v.desc && v.desc.trim()) ? 14 : 8);
+    }, 0);
+    // Espacio total: encabezado producto (9) + cabecera cols (6.5) + variantes + subtotal (6.5) + margen (5)
+    const needed = 9 + 6.5 + altVariantes + 6.5 + 5;
+
+    // Si el bloque completo no cabe pero es muy largo, permitir dividir;
+    // si al menos el encabezado + 2 variantes no caben, saltar de página
+    const minNeeded = 9 + 6.5 + Math.min(altVariantes, 24) + 6.5;
+    checkPage(minNeeded);
 
     // Encabezado del producto (fondo oscuro)
     sf(C.dark); doc.roundedRect(M, y, TW, 9, 1.5, 1.5, 'F');
@@ -1879,10 +1889,36 @@ function generarPDF(p) {
     doc.text('SUBTOTAL', W-M-2, y+4.5, {align:'right'});
     y += 6.5;
 
-    // Filas de variantes
+    // Filas de variantes — cada una verifica si cabe antes de dibujarse
     variantes.forEach((v, vi) => {
       const hasDesc = v.desc && v.desc.trim().length > 0;
       const rowH = hasDesc ? 14 : 8;
+
+      // Si esta variante no cabe, saltar página y redibujar cabeceras
+      if (y + rowH > 274) {
+        doc.addPage();
+        sf(C.dark); doc.rect(0,0,W,11,'F');
+        doc.setFont('helvetica','bold'); doc.setFontSize(7); sc(C.white);
+        doc.text('Pedido #' + String(p.num).padStart(3,'0') +
+          '  —  ' + p.cliente.toUpperCase() + '  (continuacion)', M, 7.5);
+        doc.text('Generado: ' + new Date().toLocaleDateString('es-CO'), W-M, 7.5, {align:'right'});
+        y = 18;
+
+        // Redibujar encabezado del producto y cabecera de columnas
+        sf(C.dark); doc.roundedRect(M, y, TW, 8, 1.5, 1.5, 'F');
+        doc.setFont('helvetica','bold'); doc.setFontSize(7.5); sc(C.white);
+        doc.text((idx+1) + '.  ' + (it.producto||'').toUpperCase() + ' (cont.)', M+4, y+5.5);
+        y += 8;
+        sf([235,228,218]); doc.rect(M, y, TW, 6.5, 'F');
+        doc.setFont('helvetica','bold'); doc.setFontSize(6); sc(C.mid);
+        doc.text('TALLA', M+4, y+4.5);
+        doc.text('COLOR', M+28, y+4.5);
+        doc.text('CANT.', M+90, y+4.5);
+        doc.text('P.UNIT', M+110, y+4.5);
+        doc.text('SUBTOTAL', W-M-2, y+4.5, {align:'right'});
+        y += 6.5;
+      }
+
       if (vi%2===0) { sf([250,247,242]); doc.rect(M,y,TW,rowH,'F'); }
       sd(C.light); doc.setLineWidth(0.15); doc.line(M,y+rowH,M+TW,y+rowH);
 
@@ -1912,7 +1948,15 @@ function generarPDF(p) {
       y += rowH;
     });
 
-    // Subtotal del producto
+    // Subtotal del producto — verificar espacio
+    if (y + 6.5 > 274) {
+      doc.addPage();
+      sf(C.dark); doc.rect(0,0,W,11,'F');
+      doc.setFont('helvetica','bold'); doc.setFontSize(7); sc(C.white);
+      doc.text('Pedido #' + String(p.num).padStart(3,'0') +
+        '  —  ' + p.cliente.toUpperCase() + '  (continuacion)', M, 7.5);
+      y = 18;
+    }
     sf([240,235,228]); doc.rect(M, y, TW, 6.5, 'F');
     doc.setFont('helvetica','bold'); doc.setFontSize(6.5); sc(C.mid);
     doc.text('SUBTOTAL ' + (it.producto||'').toUpperCase().split(' ')[0] + ': ' + totalUnd + ' unidades', M+4, y+4.8);
