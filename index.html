@@ -1658,7 +1658,11 @@ async function eliminarEnSheet(id) {
 }
 
 async function actualizarEstadoEnSheet(id, estado) {
-  await sheetRequest({ action: 'estado', id, estado });
+  return await sheetRequest({
+    action: 'estado',
+    id: String(id).trim(),
+    estado: String(estado).trim()
+  });
 }
 
 // ─── GUARDAR + PDF ───
@@ -2382,15 +2386,24 @@ function closeModalDirect() {
 async function cambiarEstado(btn) {
   if (!pedidoModal) return;
   const nuevoEstado = btn.dataset.e;
-  document.querySelectorAll('.estado-btn').forEach(b => b.classList.toggle('active', b === btn));
+  if (!nuevoEstado) return;
+  document.querySelectorAll('.estado-btn').forEach(function(b) {
+    b.classList.toggle('active', b === btn);
+  });
 
-  const idx = pedidos.findIndex(p => p.id === pedidoModal.id);
+  const modalId = String(pedidoModal.id);
+  const idx = pedidos.findIndex(function(p) { return String(p.id) === modalId; });
   if (idx !== -1) {
     pedidos[idx].estado = nuevoEstado;
     pedidoModal = pedidos[idx];
-    await actualizarEstadoEnSheet(pedidoModal.id, nuevoEstado);
-    showToast('Estado actualizado: ' + nuevoEstado, '#3A7D44');
+    // Actualizar localmente de inmediato
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(pedidos)); } catch(_) {}
+    // Enviar a Sheets
+    const res = await actualizarEstadoEnSheet(modalId, nuevoEstado);
+    showToast('Estado: ' + nuevoEstado, '#3A7D44');
     renderDash();
+  } else {
+    showToast('Error: pedido no encontrado localmente', '#C0392B');
   }
 }
 
@@ -2920,6 +2933,24 @@ function pdfConsolidado(clienteId) {
   showToast('PDF consolidado generado para ' + g.nombre);
 }
 
+
+// ─── TOGGLE CHARTS (movil) ───
+var chartsVisible = false;
+function toggleCharts() {
+  chartsVisible = !chartsVisible;
+  var grid  = document.getElementById('chartsGrid');
+  var arrow = document.getElementById('chartArrow');
+  if (!grid) return;
+  if (chartsVisible) {
+    grid.classList.add('open');
+    if (arrow) arrow.textContent = '▲';
+    // Re-renderizar charts porque el canvas necesita estar visible
+    setTimeout(function() { renderDash(); }, 80);
+  } else {
+    grid.classList.remove('open');
+    if (arrow) arrow.textContent = '▼';
+  }
+}
 
 // ─── RECARGAR DESDE DRIVE ───
 async function recargarDesdeDrive() {
