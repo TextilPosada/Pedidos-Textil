@@ -937,6 +937,7 @@ tr:hover td { background: var(--lighter); }
   <div class="topbar-brand">DOTACIONES <span>GLOMAR</span></div>
   <div id="syncStatus" style="font-size:0.62rem;font-weight:600;color:#7A6652;white-space:nowrap;padding:0 8px;display:flex;align-items:center">● Cargando...</div>
   <button class="tab-btn active" onclick="switchView('form', this)">＋ Pedido</button>
+  <button class="tab-btn" onclick="switchView('cotizacion', this)">📋 Cotizar</button>
   <button class="tab-btn" onclick="switchView('dash', this)">📊 Dashboard</button>
 </div>
 
@@ -1060,7 +1061,7 @@ tr:hover td { background: var(--lighter); }
 
   <!-- CLIENTE -->
   <div class="card">
-    <div class="card-title">👤 Cliente</div>
+    <div class="card-title">👤 Quien cotiza</div>
     <div class="field">
       <label>Nombre del cliente</label>
       <input type="text" id="clienteNombre" placeholder="Ej: GUANABANA CENTRO" autocomplete="off">
@@ -1121,6 +1122,87 @@ tr:hover td { background: var(--lighter); }
   </button>
 </div>
 </div><!-- /view-form -->
+
+<!-- ═══════════════════════════════════════
+     VISTA: COTIZACIÓN
+═══════════════════════════════════════ -->
+<div id="view-cotizacion" class="view">
+<div class="form-wrap">
+
+  <div class="card">
+    <div class="card-title">📋 Datos de la cotización</div>
+    <div class="row2">
+      <div class="field">
+        <label>N.° Cotización</label>
+        <input type="number" id="cotNumero" value="1" min="1">
+      </div>
+      <div class="field">
+        <label>Fecha</label>
+        <input type="date" id="cotFecha">
+      </div>
+    </div>
+    <div class="field">
+      <label>Válida hasta</label>
+      <input type="date" id="cotVigencia">
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">👤 Cliente</div>
+    <div class="field">
+      <label>Tipo de persona</label>
+      <div class="status-row">
+        <div class="status-chip active" data-val="Natural" onclick="setCotTipo(this)">Persona Natural</div>
+        <div class="status-chip" data-val="Juridica" onclick="setCotTipo(this)">Persona Jurídica</div>
+      </div>
+      <input type="hidden" id="cotTipoPersona" value="Natural">
+    </div>
+    <div class="field">
+      <label>Nombre / Razón social</label>
+      <input type="text" id="cotCliente" placeholder="Nombre de quien cotiza" autocomplete="off">
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label id="cotDocLabel">Cédula</label>
+        <input type="text" id="cotDoc" placeholder="000.000.000">
+      </div>
+      <div class="field">
+        <label>Teléfono</label>
+        <input type="tel" id="cotTel" placeholder="300 000 0000">
+      </div>
+    </div>
+    <div class="field">
+      <label>Ciudad / Dirección</label>
+      <input type="text" id="cotCiudad" placeholder="Ej: Bogotá, Calle 10 #20-30">
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">👗 Productos cotizados</div>
+    <div id="cotItemsContainer"></div>
+    <button class="btn-add" onclick="agregarCotItem()">＋ Agregar producto</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">💰 Resumen</div>
+    <div class="total-bar">
+      <span class="lbl">Total cotización</span>
+      <span class="val" id="cotTotalDisp">$0</span>
+    </div>
+    <div class="field" style="margin-top:12px">
+      <label>Condiciones / Observaciones</label>
+      <textarea id="cotCondiciones" rows="3" placeholder="Forma de pago, tiempos de entrega, garantías..."></textarea>
+    </div>
+  </div>
+
+</div><!-- /form-wrap -->
+<div class="fab-pdf">
+  <button onclick="generarCotizacionPDF()">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+    Generar PDF de Cotización
+  </button>
+</div>
+</div><!-- /view-cotizacion -->
 
 <!-- ═══════════════════════════════════════
      VISTA: DASHBOARD
@@ -1289,11 +1371,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // ─── TABS ───
 function switchView(id, btn) {
-  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(function(v) { v.classList.remove('active'); });
+  document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
   document.getElementById('view-' + id).classList.add('active');
   btn.classList.add('active');
   if (id === 'dash') renderDash();
+  if (id === 'cotizacion' && cotItems.length === 0) {
+    initCotFechas();
+    agregarCotItem();
+  }
 }
 
 // ─── ESTADO FORM ───
@@ -3084,7 +3170,434 @@ function showToast(msg, color) {
 </div><!-- /appContent -->
 
 <script>
-// ─── SERVICE WORKER INLINE (PWA offline) ───
+// ═══════════════════════════════════════════════════════
+//  COTIZACIONES
+// ═══════════════════════════════════════════════════════
+
+var cotItems = [];
+var _cotItemC = 0;
+var _cotVarC  = 0;
+function nuevoCotItemId() { return 'ci' + (++_cotItemC); }
+function nuevoCotVarId()  { return 'cv' + (++_cotVarC);  }
+
+// Inicializar fechas de cotización
+function initCotFechas() {
+  var hoy = new Date();
+  document.getElementById('cotFecha').value = hoy.toISOString().split('T')[0];
+  var vig = new Date(hoy); vig.setDate(hoy.getDate() + 15);
+  document.getElementById('cotVigencia').value = vig.toISOString().split('T')[0];
+  var maxCot = parseInt(localStorage.getItem('cotNumero') || '0') + 1;
+  document.getElementById('cotNumero').value = maxCot;
+}
+
+function setCotTipo(el) {
+  document.querySelectorAll('.status-chip').forEach(function(c) {
+    // Solo afectar chips dentro del form de cotización
+    if (el.parentNode.contains(c)) c.classList.remove('active');
+  });
+  el.classList.add('active');
+  document.getElementById('cotTipoPersona').value = el.dataset.val;
+  document.getElementById('cotDocLabel').textContent = el.dataset.val === 'Juridica' ? 'NIT' : 'Cédula';
+}
+
+// ── Items de cotización ──
+function agregarCotItem() {
+  salvarCotItems();
+  cotItems.push({ id: nuevoCotItemId(), variantes: [{ vid: nuevoCotVarId() }] });
+  renderCotItems();
+  restaurarCotItems();
+}
+function eliminarCotItem(id) {
+  salvarCotItems();
+  cotItems = cotItems.filter(function(i) { return i.id !== id; });
+  renderCotItems();
+  restaurarCotItems();
+  calcCotTotal();
+}
+function agregarCotVariante(itemId) {
+  salvarCotItems();
+  var it = cotItems.find(function(i) { return i.id === itemId; });
+  if (it) it.variantes.push({ vid: nuevoCotVarId() });
+  renderCotItems();
+  restaurarCotItems();
+  calcCotTotal();
+}
+function eliminarCotVariante(itemId, vid) {
+  salvarCotItems();
+  var it = cotItems.find(function(i) { return i.id === itemId; });
+  if (it && it.variantes.length > 1)
+    it.variantes = it.variantes.filter(function(v) { return v.vid !== vid; });
+  renderCotItems();
+  restaurarCotItems();
+  calcCotTotal();
+}
+
+function salvarCotItems() {
+  cotItems.forEach(function(it) {
+    var p = document.getElementById('cprod-' + it.id);
+    if (p) it._prod = p.value;
+    it.variantes.forEach(function(v) {
+      var t = document.getElementById('ctalla-' + v.vid);
+      var co = document.getElementById('ccolor-' + v.vid);
+      var q = document.getElementById('ccant-'  + v.vid);
+      var pr = document.getElementById('cprec-'  + v.vid);
+      var d = document.getElementById('cdesc-'  + v.vid);
+      if (t)  v._talla = t.value;
+      if (co) v._color = co.value;
+      if (q)  v._cant  = q.value;
+      if (pr) v._prec  = pr.value;
+      if (d)  v._desc  = d.value;
+    });
+  });
+}
+
+function restaurarCotItems() {
+  cotItems.forEach(function(it) {
+    var p = document.getElementById('cprod-' + it.id);
+    if (p && it._prod !== undefined) p.value = it._prod;
+    it.variantes.forEach(function(v) {
+      var t = document.getElementById('ctalla-' + v.vid);
+      var co = document.getElementById('ccolor-' + v.vid);
+      var q = document.getElementById('ccant-'  + v.vid);
+      var pr = document.getElementById('cprec-'  + v.vid);
+      var d = document.getElementById('cdesc-'  + v.vid);
+      if (t  && v._talla !== undefined) t.value  = v._talla;
+      if (co && v._color !== undefined) co.value = v._color;
+      if (q  && v._cant  !== undefined) q.value  = v._cant;
+      if (pr && v._prec  !== undefined) pr.value = v._prec;
+      if (d  && v._desc  !== undefined) d.value  = v._desc;
+    });
+  });
+  calcCotTotal();
+}
+
+function renderCotItems() {
+  var cont = document.getElementById('cotItemsContainer');
+  if (!cont) return;
+  cont.innerHTML = '';
+  cotItems.forEach(function(it, idx) {
+    var varsHTML = it.variantes.map(function(v) {
+      return '<div class="variante-row" id="cvrow-' + v.vid + '">' +
+        '<div class="var-talla"><label>Talla</label>' +
+          '<input type="text" id="ctalla-' + v.vid + '" placeholder="S,M,38..."></div>' +
+        '<div class="var-color"><label>Color</label>' +
+          '<input type="text" id="ccolor-' + v.vid + '" placeholder="Ej: Negro"></div>' +
+        '<div class="var-cant"><label>Cant.</label>' +
+          '<input type="number" id="ccant-' + v.vid + '" value="1" min="1" inputmode="numeric" oninput="calcCotTotal()"></div>' +
+        '<div class="var-prec"><label>Precio unit.</label>' +
+          '<input type="number" id="cprec-' + v.vid + '" placeholder="0" inputmode="decimal" oninput="calcCotTotal()"></div>' +
+        '<div class="var-sub"><label>Subtotal</label>' +
+          '<input type="text" id="csubt-' + v.vid + '" readonly placeholder="-" style="color:var(--accent);font-weight:600;font-size:0.8rem;"></div>' +
+        '<button class="btn-del-var" onclick="eliminarCotVariante(\'' + it.id + '\',\'' + v.vid + '\')">-</button>' +
+      '</div>' +
+      '<div class="var-desc-row">' +
+        '<input type="text" id="cdesc-' + v.vid + '" placeholder="Detalle: 3 bolsillos, bordado, sesgo..."></div>';
+    }).join('');
+
+    cont.innerHTML += '<div class="item-card" id="cic-' + it.id + '">' +
+      '<div class="item-header">' +
+        '<span class="item-num">Producto ' + (idx+1) + '</span>' +
+        '<button class="btn-del" onclick="eliminarCotItem(\'' + it.id + '\')">x</button>' +
+      '</div>' +
+      '<div class="field" style="margin-bottom:10px">' +
+        '<label>Nombre del producto</label>' +
+        '<input type="text" id="cprod-' + it.id + '" placeholder="Ej: CAMISA POLO, DELANTAL...">' +
+      '</div>' +
+      '<div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--mid);margin-bottom:6px">Tallas / Colores / Cantidades</div>' +
+      '<div id="cvars-' + it.id + '">' + varsHTML + '</div>' +
+      '<button class="btn-add-var" onclick="agregarCotVariante(\'' + it.id + '\')">+ Agregar talla / color</button>' +
+      '<div class="item-subtotal-row">' +
+        '<span style="font-size:0.75rem;color:var(--mid)">Total producto:</span>' +
+        '<span id="citotal-' + it.id + '" style="font-weight:700;color:var(--accent)">-</span>' +
+      '</div>' +
+    '</div>';
+  });
+}
+
+function calcCotTotal() {
+  var total = 0;
+  cotItems.forEach(function(it) {
+    var itemTotal = 0;
+    it.variantes.forEach(function(v) {
+      var c = parseFloat(document.getElementById('ccant-' + v.vid)?.value) || 0;
+      var p = parseFloat(document.getElementById('cprec-' + v.vid)?.value) || 0;
+      var s = c * p;
+      var el = document.getElementById('csubt-' + v.vid);
+      if (el) el.value = s > 0 ? '$' + fmt(s) : '';
+      itemTotal += s;
+    });
+    var itEl = document.getElementById('citotal-' + it.id);
+    if (itEl) itEl.textContent = itemTotal > 0 ? '$' + fmt(itemTotal) : '-';
+    total += itemTotal;
+  });
+  var el = document.getElementById('cotTotalDisp');
+  if (el) el.textContent = '$' + fmt(total);
+  return total;
+}
+
+// ── PDF COTIZACIÓN ──
+function generarCotizacionPDF() {
+  var cliente = (document.getElementById('cotCliente').value || '').trim();
+  if (!cliente) { showToast('Ingresa el nombre del cliente', '#D4A017'); return; }
+  if (cotItems.length === 0) { showToast('Agrega al menos un producto', '#D4A017'); return; }
+
+  if (!window.jspdf || !window.jspdf.jsPDF) {
+    showToast('Cargando generador PDF...', '#D4A017');
+    var s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+    s.onload = function() { generarCotizacionPDF(); };
+    document.head.appendChild(s);
+    return;
+  }
+
+  var numCot   = parseInt(document.getElementById('cotNumero').value) || 1;
+  var tipo     = document.getElementById('cotTipoPersona').value;
+  var doc_num  = document.getElementById('cotDoc').value || '';
+  var tel      = document.getElementById('cotTel').value || '';
+  var ciudad   = document.getElementById('cotCiudad').value || '';
+  var fechaCot = document.getElementById('cotFecha').value;
+  var vigencia = document.getElementById('cotVigencia').value;
+  var condiciones = document.getElementById('cotCondiciones').value || '';
+  var total    = calcCotTotal();
+
+  // Recolectar items
+  var itemsData = cotItems.map(function(it, idx) {
+    return {
+      num: idx + 1,
+      producto: document.getElementById('cprod-' + it.id)?.value || '',
+      variantes: it.variantes.map(function(v) {
+        return {
+          talla:    document.getElementById('ctalla-' + v.vid)?.value || '',
+          color:    document.getElementById('ccolor-' + v.vid)?.value || '',
+          desc:     document.getElementById('cdesc-'  + v.vid)?.value || '',
+          cantidad: parseInt(document.getElementById('ccant-' + v.vid)?.value) || 1,
+          precio:   parseFloat(document.getElementById('cprec-' + v.vid)?.value) || 0,
+        };
+      }).filter(function(v) { return v.cantidad > 0; })
+    };
+  });
+
+  var { jsPDF } = window.jspdf;
+  var doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  var W = 210, M = 14, TW = W - M * 2;
+
+  var C = {
+    dark:  [26, 18, 8],   acc:   [200, 115, 58],
+    mid:   [122, 102, 82], light: [226, 217, 206],
+    bg:    [245, 242, 237], white: [255, 255, 255],
+  };
+  var sc = function(a) { doc.setTextColor(a[0], a[1], a[2]); };
+  var sf = function(a) { doc.setFillColor(a[0], a[1], a[2]); };
+  var sd = function(a) { doc.setDrawColor(a[0], a[1], a[2]); };
+
+  var y = 0;
+
+  // ── Pie en todas las páginas ──
+  var dibujarPies = function() {
+    var np = doc.internal.getNumberOfPages();
+    for (var pg = 1; pg <= np; pg++) {
+      doc.setPage(pg);
+      sf(C.dark); doc.rect(0, 287, W, 10, 'F');
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(6.5); sc([100, 85, 70]);
+      doc.text('Cotizacion #' + String(numCot).padStart(3,'0') +
+        '  |  ' + cliente +
+        '  |  Pag. ' + pg + ' de ' + np +
+        '  |  ' + new Date().toLocaleDateString('es-CO'),
+        W/2, 293, { align: 'center' });
+    }
+  };
+
+  // ── Salto de página ──
+  var miniHeader = function() {
+    sf(C.dark); doc.rect(0, 0, W, 11, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7); sc(C.white);
+    doc.text('COTIZACION #' + String(numCot).padStart(3,'0') +
+      '  —  ' + cliente.toUpperCase() + '  (continuacion)', M, 7.5);
+    y = 18;
+  };
+  var checkPag = function(needed) {
+    if (y + needed > 274) { doc.addPage(); miniHeader(); }
+  };
+
+  // ══ ENCABEZADO ══
+  sf(C.dark); doc.rect(0, 0, W, 42, 'F');
+
+  // Franja de color acento izquierda
+  sf(C.acc); doc.rect(0, 0, 4, 42, 'F');
+
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(13); sc(C.white);
+  doc.text(cliente.toUpperCase(), M, 14);
+
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(22); sc(C.acc);
+  doc.text('#' + String(numCot).padStart(3,'0'), M, 28);
+
+  // Fechas derecha
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); sc([180, 160, 130]);
+  doc.text('Fecha: ' + fmtFecha(fechaCot), W - M, 12, { align: 'right' });
+  doc.text('Valida hasta: ', W - M, 19, { align: 'right' });
+  doc.setFont('helvetica', 'bold'); sc(C.acc);
+  doc.text(fmtFecha(vigencia), W - M, 25, { align: 'right' });
+  doc.setFont('helvetica', 'normal'); sc([180, 160, 130]);
+  doc.text('Generada: ' + new Date().toLocaleDateString('es-CO'), W - M, 31, { align: 'right' });
+
+  y = 50;
+
+  // ══ DATOS CLIENTE ══
+  sf(C.bg); doc.roundedRect(M, y, TW, 22, 2, 2, 'F');
+  sd(C.light); doc.setLineWidth(0.3); doc.roundedRect(M, y, TW, 22, 2, 2, 'S');
+  // Borde izquierdo acento
+  sf(C.acc); doc.rect(M, y, 2, 22, 'F');
+
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(7); sc(C.acc);
+  doc.text('DATOS DE QUIEN COTIZA', M + 6, y + 7);
+
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); sc(C.dark);
+  var docLabel = tipo === 'Juridica' ? 'NIT: ' : 'CC: ';
+  doc.text(docLabel + (doc_num || '-'), M + 6, y + 16);
+
+  // Derecha: tipo, tel, ciudad
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5);
+  sc(tipo === 'Juridica' ? [21,101,192] : [46,125,50]);
+  doc.text('Persona ' + tipo, W - M - 4, y + 7, { align: 'right' });
+  doc.setFont('helvetica', 'normal'); sc(C.mid);
+  if (tel) doc.text('Tel: ' + tel, W - M - 4, y + 10, { align: 'right' });
+  if (ciudad) doc.text(ciudad, W - M - 4, y + 17, { align: 'right' });
+
+  y += 30;
+
+  // ══ PRODUCTOS ══
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); sc(C.acc);
+  doc.text('PRODUCTOS COTIZADOS', M, y);
+  y += 6;
+
+  itemsData.forEach(function(it, idx) {
+    var variantes = it.variantes || [];
+    var totalProd = variantes.reduce(function(s,v) { return s + v.cantidad * (v.precio||0); }, 0);
+    var totalUnd  = variantes.reduce(function(s,v) { return s + v.cantidad; }, 0);
+    var altVar    = variantes.reduce(function(s,v) { return s + ((v.desc && v.desc.trim()) ? 14 : 8); }, 0);
+    var minNeed   = 9 + 6.5 + Math.min(altVar, 24) + 6.5;
+    checkPag(minNeed);
+
+    // Encabezado producto
+    sf(C.dark); doc.roundedRect(M, y, TW, 9, 1.5, 1.5, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); sc(C.white);
+    doc.text((idx+1) + '.  ' + (it.producto||'').toUpperCase(), M+4, y+6);
+    sc(C.acc); doc.setFontSize(8);
+    doc.text(totalUnd + ' und.', W-M-34, y+6);
+    if (totalProd > 0) {
+      sc([180,160,130]); doc.setFontSize(7.5);
+      doc.text('$' + fmt(totalProd), W-M-2, y+6, { align: 'right' });
+    }
+    y += 9;
+
+    // Cabecera columnas
+    sf([235,228,218]); doc.rect(M, y, TW, 6.5, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(6); sc(C.mid);
+    doc.text('TALLA', M+4, y+4.5);
+    doc.text('COLOR', M+28, y+4.5);
+    doc.text('CANT.', M+90, y+4.5);
+    doc.text('P.UNIT', M+110, y+4.5);
+    doc.text('SUBTOTAL', W-M-2, y+4.5, { align: 'right' });
+    y += 6.5;
+
+    variantes.forEach(function(v, vi) {
+      var hasDesc = v.desc && v.desc.trim().length > 0;
+      var rowH    = hasDesc ? 14 : 8;
+
+      // Salto por variante
+      if (y + rowH > 274) {
+        doc.addPage(); miniHeader();
+        sf(C.dark); doc.roundedRect(M, y, TW, 8, 1.5, 1.5, 'F');
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); sc(C.white);
+        doc.text((idx+1) + '.  ' + (it.producto||'').toUpperCase() + ' (cont.)', M+4, y+5.5);
+        y += 8;
+        sf([235,228,218]); doc.rect(M, y, TW, 6.5, 'F');
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(6); sc(C.mid);
+        doc.text('TALLA', M+4, y+4.5); doc.text('COLOR', M+28, y+4.5);
+        doc.text('CANT.', M+90, y+4.5); doc.text('P.UNIT', M+110, y+4.5);
+        doc.text('SUBTOTAL', W-M-2, y+4.5, { align: 'right' });
+        y += 6.5;
+      }
+
+      if (vi%2===0) { sf([250,247,242]); doc.rect(M,y,TW,rowH,'F'); }
+      sd(C.light); doc.setLineWidth(0.15); doc.line(M,y+rowH,M+TW,y+rowH);
+
+      doc.setFont('helvetica','bold'); doc.setFontSize(8); sc(C.dark);
+      doc.text(v.talla||'-', M+4, y+5.5);
+
+      doc.setFont('helvetica','normal'); doc.setFontSize(7.5); sc(C.mid);
+      doc.text(doc.splitTextToSize(v.color||'-', 58)[0], M+28, y+5.5);
+
+      doc.setFont('helvetica','bold'); sc(C.dark);
+      doc.text(String(v.cantidad), M+97, y+5.5, { align: 'center' });
+
+      doc.setFont('helvetica','normal'); sc(C.mid);
+      doc.text(v.precio>0 ? '$'+fmt(v.precio) : '-', M+110, y+5.5);
+
+      var sub = v.cantidad * (v.precio||0);
+      sc(sub>0 ? C.acc : C.mid);
+      doc.setFont('helvetica','bold');
+      doc.text(sub>0 ? '$'+fmt(sub) : '-', W-M-2, y+5.5, { align: 'right' });
+
+      if (hasDesc) {
+        doc.setFont('helvetica','italic'); doc.setFontSize(6.5); sc([160,140,120]);
+        doc.text(doc.splitTextToSize('  Detalle: ' + v.desc, TW-6)[0], M+4, y+11);
+      }
+      y += rowH;
+    });
+
+    // Subtotal producto
+    if (y + 6.5 > 274) { doc.addPage(); miniHeader(); }
+    sf([240,235,228]); doc.rect(M, y, TW, 6.5, 'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(6.5); sc(C.mid);
+    doc.text('SUBTOTAL ' + (it.producto||'').toUpperCase().split(' ')[0] + ': ' + totalUnd + ' unidades', M+4, y+4.8);
+    if (totalProd>0) { sc(C.acc); doc.text('$'+fmt(totalProd), W-M-2, y+4.8, { align: 'right' }); }
+    y += 6.5;
+    y += 5;
+  });
+
+  // ══ TOTAL FINAL ══
+  checkPag(38);
+  y += 4;
+  sf(C.dark); doc.roundedRect(W-M-75, y, 75, 22, 2, 2, 'F');
+  doc.setFont('helvetica','normal'); doc.setFontSize(7); sc([180,160,130]);
+  doc.text('TOTAL COTIZACION', W-M-72, y+7);
+  doc.setFont('helvetica','bold'); doc.setFontSize(14); sc(C.acc);
+  doc.text('$' + fmt(total), W-M-3, y+17, { align: 'right' });
+
+  // Condiciones
+  if (condiciones) {
+    var condW = TW - 80;
+    sf(C.bg); doc.roundedRect(M, y, condW, 22, 2, 2, 'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(7); sc(C.acc);
+    doc.text('CONDICIONES', M+4, y+7);
+    doc.setFont('helvetica','normal'); sc(C.dark);
+    var lines = doc.splitTextToSize(condiciones, condW - 8);
+    doc.text(lines.slice(0, 3), M+4, y+13);
+  }
+
+  y += 28;
+
+  // ══ FIRMA ══
+  if (y + 24 > 274) { doc.addPage(); miniHeader(); }
+  sd(C.light); doc.setLineWidth(0.5);
+  doc.line(M, y+18, M+75, y+18);
+  doc.line(W-M-75, y+18, W-M, y+18);
+  doc.setFont('helvetica','normal'); doc.setFontSize(7); sc(C.mid);
+  doc.text('Firma del cliente', M+16, y+24);
+  doc.text('Autorizado por', W-M-52, y+24);
+
+  dibujarPies();
+
+  var nombreArchivo = 'Cotizacion-' + String(numCot).padStart(3,'0') + '-' + cliente.split(' ')[0] + '.pdf';
+  doc.save(nombreArchivo);
+
+  // Guardar consecutivo
+  localStorage.setItem('cotNumero', numCot);
+  showToast('Cotizacion #' + String(numCot).padStart(3,'0') + ' generada');
+}
+
+
 if ('serviceWorker' in navigator) {
   const swCode = `
 const CACHE = 'textilpro-v1';
